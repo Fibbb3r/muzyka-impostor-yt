@@ -73,6 +73,13 @@ export default function PickingPhase({ room, players, currentPlayer, isAdmin, so
   }, [url, startMin, startSec, room.id, currentPlayer.id]);
 
   async function goToPlaying() {
+    // Shuffle order: assign random song_order to each song
+    const shuffled = [...songs].sort(() => Math.random() - 0.5);
+    await Promise.all(
+      shuffled.map((s, i) =>
+        supabase.from('songs').update({ song_order: i + 1 }).eq('id', s.id)
+      )
+    );
     await supabase.from('rooms')
       .update({ status: 'playing', current_song_index: 1 })
       .eq('id', room.id);

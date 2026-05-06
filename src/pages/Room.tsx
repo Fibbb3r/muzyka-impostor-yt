@@ -11,7 +11,13 @@ import ErrorBoundary from '../components/ErrorBoundary';
 import type { Room, Player, Song, Vote, VoteState } from '../types/game';
 
 function sortSongs(s: Song[]): Song[] {
-  return [...s].sort((a, b) => new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime());
+  return [...s].sort((a, b) => {
+    // If song_order is assigned (non-zero), use it; otherwise fall back to created_at
+    const ao = a.song_order ?? 0;
+    const bo = b.song_order ?? 0;
+    if (ao !== 0 || bo !== 0) return ao - bo;
+    return new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime();
+  });
 }
 
 const GLOBAL_ROOM_CODE = 'GLOBAL';

@@ -25,6 +25,7 @@ export interface Song {
   youtube_url: string;
   start_seconds: number;
   submitted: boolean;
+  song_order?: number;
   created_at?: string;
 }
 
