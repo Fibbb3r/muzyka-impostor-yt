@@ -133,10 +133,12 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
                   <div style={{ fontWeight: 700, fontSize: 13 }}>{voter.name}</div>
                   {vote ? (
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                      Wskazał: <strong style={{ color: 'var(--text)' }}>{votedFor?.name ?? '?'}</strong>
+                      {room.game_mode !== 'word_impostor' && (
+                        <>Wskazał: <strong style={{ color: 'var(--text)' }}>{votedFor?.name ?? '?'}</strong></>
+                      )}
                       {vote.is_impostor_guess && (
-                        <span style={{ color: '#fb7185', marginLeft: 6 }}>
-                          · jako Impostor{room.game_mode === 'impostor' ? ` pod ${players.find(p => p.id === vote.impostor_target_id)?.name ?? '?'}` : ''}
+                        <span style={{ color: '#fb7185', marginLeft: room.game_mode === 'word_impostor' ? 0 : 6 }}>
+                          {room.game_mode === 'word_impostor' ? 'Wskazał jako Impostora' : '· jako Impostor'}{room.game_mode === 'impostor' ? ` pod ${players.find(p => p.id === vote.impostor_target_id)?.name ?? '?'}` : ''}
                         </span>
                       )}
                     </div>
@@ -145,17 +147,20 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
                   )}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
-                  {isCorrect && (!vote?.is_impostor_guess || !guessedImpostor) && (
+                  {room.game_mode !== 'word_impostor' && isCorrect && (!vote?.is_impostor_guess || !guessedImpostor) && (
                     <span className="badge badge-green">✓ Trafił!</span>
                   )}
-                  {perfectGuess && (
+                  {room.game_mode !== 'word_impostor' && perfectGuess && (
                     <span className="badge badge-red">🎯 Idealny traf!</span>
                   )}
                   {guessedImpostor && !guessedVictim && (
                     <span className="badge badge-orange">🕵️ Wykrył impostora</span>
                   )}
-                  {!isCorrect && !guessedImpostor && vote && (
+                  {room.game_mode !== 'word_impostor' && !isCorrect && !guessedImpostor && vote && (
                     <span className="badge badge-gray">✗ Pudło</span>
+                  )}
+                  {room.game_mode === 'word_impostor' && vote?.is_impostor_guess && !guessedImpostor && (
+                    <span className="badge badge-gray">✗ Błędny strzał</span>
                   )}
                 </div>
               </div>

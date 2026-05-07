@@ -282,21 +282,35 @@ export default function PlayingPhase({
                 </div>
 
                 {/* Who added it */}
-                <label className="label" style={{ marginBottom: 4 }}>Kto dodał?</label>
-                <select
-                  className="input"
-                  style={{ fontSize: 13, padding: '9px 12px' }}
-                  value={vote.voted_for_id}
-                  onChange={e => onVoteChange(idx, 'voted_for_id', e.target.value)}
-                >
-                  <option value="">— wybierz gracza —</option>
-                  {players.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
+                {isWordImpostorMode ? (
+                  <div style={{ marginBottom: 4 }}>
+                    <label className="label" style={{ marginBottom: 4 }}>Dodał/a:</label>
+                    <div style={{
+                      padding: '9px 12px', background: 'var(--bg3)', borderRadius: 10,
+                      border: '1px solid var(--border)', fontSize: 13, fontWeight: 700
+                    }}>
+                      {players.find(p => p.id === songs[i].player_id)?.name ?? 'Nieznany'}
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <label className="label" style={{ marginBottom: 4 }}>Kto dodał?</label>
+                    <select
+                      className="input"
+                      style={{ fontSize: 13, padding: '9px 12px' }}
+                      value={vote.voted_for_id}
+                      onChange={e => onVoteChange(idx, 'voted_for_id', e.target.value)}
+                    >
+                      <option value="">— wybierz gracza —</option>
+                      {players.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
 
                 {/* Impostor guess */}
-                {showImpostorCheckbox && !amImpostor && vote.voted_for_id && !impostorAlreadyGuessed && (
+                {showImpostorCheckbox && !amImpostor && (isWordImpostorMode || vote.voted_for_id) && !impostorAlreadyGuessed && (
                   <div style={{ marginTop: 10 }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 8 }}>
                       <input

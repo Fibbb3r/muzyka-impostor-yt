@@ -121,6 +121,10 @@ export default function RoomPage() {
       const cur = prev[songIdx] ?? { voted_for_id: '', is_impostor_guess: false, impostor_target_id: '' };
       let updated = { ...cur, [field]: value };
 
+      if (room.game_mode === 'word_impostor' && !updated.voted_for_id) {
+        updated.voted_for_id = songs[songIdx - 1]?.player_id ?? '';
+      }
+
       // Only one impostor guess allowed across all songs
       if (field === 'is_impostor_guess' && value === true) {
         const cleared: Record<number, VoteState> = {};
@@ -152,7 +156,7 @@ export default function RoomPage() {
         impostor_target_id: updatedVote.impostor_target_id || null,
       }, { onConflict: 'room_id,voter_id,song_index' });
     }, 0);
-  }, [room, currentPlayer]);
+  }, [room, currentPlayer, songs]);
 
   // ── Kick player ─────────────────────────────────────────────
   async function kickPlayer(p: Player) {
