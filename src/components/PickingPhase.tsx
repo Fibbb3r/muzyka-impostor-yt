@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Link2, Clock, Check, Loader2, ChevronRight, AlertCircle } from 'lucide-react';
+import { Link2, Clock, Check, Loader2, ChevronRight, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { Room, Player, Song } from '../types/game';
 
@@ -34,6 +34,7 @@ export default function PickingPhase({ room, players, currentPlayer, isAdmin, so
   const [startSec, setStartSec] = useState('0');
   const [saving, setSaving] = useState(false);
   const [urlError, setUrlError] = useState('');
+  const [showNames, setShowNames] = useState(false);
 
   const myRole = currentPlayer.is_impostor
     ? (() => {
@@ -213,30 +214,99 @@ export default function PickingPhase({ room, players, currentPlayer, isAdmin, so
         </div>
       </div>
 
-      {/* Status per player */}
+      {/* Status — anonymous checkmarks */}
       <div className="card" style={{ marginBottom: 16 }}>
-        <p className="section-title">Status graczy</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {players.map(p => {
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <p className="section-title" style={{ margin: 0 }}>Status graczy</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              {songs.filter(s => s.submitted).length} / {players.length} gotowych
+            </span>
+            {isAdmin && (
+              <button
+                onClick={() => setShowNames(v => !v)}
+                title={showNames ? 'Ukryj imiona' : 'Pokaż kto wybrał'}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '4px 10px', borderRadius: 8, cursor: 'pointer',
+                  fontSize: 11, fontWeight: 600,
+                  background: showNames ? 'rgba(124,108,252,0.15)' : 'var(--bg3)',
+                  border: `1px solid ${showNames ? 'rgba(124,108,252,0.4)' : 'var(--border)'}`,
+                  color: showNames ? 'var(--accent)' : 'var(--text-muted)',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {showNames ? <EyeOff size={12} /> : <Eye size={12} />}
+                {showNames ? 'Ukryj' : 'Pokaż'}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Checkmarks row — always visible */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {[...players].sort((a, b) => {
+              const aReady = songs.some(s => s.player_id === a.id && s.submitted) ? 0 : 1;
+              const bReady = songs.some(s => s.player_id === b.id && s.submitted) ? 0 : 1;
+              return aReady - bReady;
+            }).map((p, i) => {
             const hasSong = songs.some(s => s.player_id === p.id && s.submitted);
             return (
-              <div key={p.id} style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '9px 12px', borderRadius: 10,
-                background: 'var(--bg3)', border: '1px solid var(--border)',
-              }}>
-                <div className="avatar" style={{ width: 30, height: 30, fontSize: 12 }}>
-                  {p.name[0].toUpperCase()}
-                </div>
-                <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{p.name}</span>
+              <motion.div
+                key={p.id}
+                initial={{ scale: 0.7, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: i * 0.05 }}
+                title={hasSong ? 'Gotowy' : 'Wybiera…'}
+                style={{
+                  width: 38, height: 38,
+                  borderRadius: 10,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: hasSong ? 'rgba(34,197,94,0.15)' : 'var(--bg3)',
+                  border: `2px solid ${hasSong ? 'rgba(34,197,94,0.5)' : 'var(--border)'}`,
+                  transition: 'all 0.3s ease',
+                }}
+              >
                 {hasSong
-                  ? <span className="badge badge-green"><Check size={10} /> Gotowy</span>
-                  : <span className="badge badge-gray">Wybiera…</span>
+                  ? <Check size={18} color="#22c55e" strokeWidth={2.5} />
+                  : <div style={{ width: 18, height: 18, borderRadius: 4, background: 'var(--border)' }} />
                 }
-              </div>
+              </motion.div>
             );
           })}
         </div>
+
+        {/* Admin-only names list */}
+        {isAdmin && showNames && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6, overflow: 'hidden' }}
+          >
+            <div style={{ height: 1, background: 'var(--border)', marginBottom: 4 }} />
+            {players.map(p => {
+              const hasSong = songs.some(s => s.player_id === p.id && s.submitted);
+              return (
+                <div key={p.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '7px 10px', borderRadius: 8,
+                  background: hasSong ? 'rgba(34,197,94,0.07)' : 'var(--bg3)',
+                  border: `1px solid ${hasSong ? 'rgba(34,197,94,0.25)' : 'var(--border)'}`,
+                }}>
+                  <div className="avatar" style={{ width: 26, height: 26, fontSize: 11 }}>
+                    {p.name[0].toUpperCase()}
+                  </div>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{p.name}</span>
+                  {hasSong
+                    ? <span style={{ fontSize: 11, color: '#22c55e', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}><Check size={11} /> Gotowy</span>
+                    : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Wybiera…</span>
+                  }
+                </div>
+              );
+            })}
+          </motion.div>
+        )}
       </div>
 
       {/* Admin next step */}

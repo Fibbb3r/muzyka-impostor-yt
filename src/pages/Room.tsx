@@ -160,17 +160,35 @@ export default function RoomPage() {
     setToast(`Wyrzucono: ${p.name}`);
   }
 
-  // ── Cleanup on unmount (remove player from DB) ──────────────
+  // ── Auto-remove on tab close (lobby & picking only) ─────────
   useEffect(() => {
     const handleUnload = () => {
-      if (playerId) {
-        navigator.sendBeacon('/api/noop'); // keepalive trick
-        supabase.from('players').delete().eq('id', playerId).then(() => {});
-      }
+      if (!playerId) return;
+      // Only remove during lobby/picking — don't interrupt active game
+      const status = room?.status;
+      if (status !== 'lobby' && status !== 'picking') return;
+
+      // fetch with keepalive=true is guaranteed to send even when page is closing
+      fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/players?id=eq.${playerId}`,
+        {
+          method: 'DELETE',
+          keepalive: true,
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+        }
+      );
     };
+
     window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
-  }, [playerId]);
+    window.addEventListener('pagehide', handleUnload); // Safari / iOS
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload);
+      window.removeEventListener('pagehide', handleUnload);
+    };
+  }, [playerId, room?.status]);
 
   // ── Kicked screen ───────────────────────────────────────────
   if (kicked) {
@@ -207,7 +225,7 @@ export default function RoomPage() {
   return (
     <ErrorBoundary>
     <div className="page-top" style={{ paddingTop: 28 }}>
-      <div style={{ width: '100%', maxWidth: 1100, padding: '0 16px' }}>
+      <div style={{ width: '100%', maxWidth: 1600, padding: '0 16px' }}>
 
         {room.status === 'lobby' && (
           <LobbyPhase

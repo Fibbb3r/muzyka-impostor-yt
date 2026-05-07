@@ -46,6 +46,25 @@ export default function PlayingPhase({
   });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Titles revealed as songs play: { songIdx (1-based) -> title }
+  const [revealedTitles, setRevealedTitles] = useState<Record<number, string>>({});
+
+  // Fetch title via YouTube oEmbed (no API key needed) when song changes
+  useEffect(() => {
+    if (!currentSong) return;
+    const vid = extractVideoId(currentSong.youtube_url);
+    if (!vid) return;
+    const oEmbedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid}&format=json`;
+    fetch(oEmbedUrl)
+      .then(r => r.json())
+      .then(data => {
+        if (data?.title) {
+          setRevealedTitles(prev => ({ ...prev, [currentSongIdx]: data.title }));
+        }
+      })
+      .catch(() => {}); // silently ignore errors
+  }, [currentSongIdx, currentSong?.youtube_url]);
+
   const startTimer = useCallback(() => {
     setElapsed(0);
     setPlaying(true);
@@ -94,8 +113,8 @@ export default function PlayingPhase({
   const isLastSong = currentSongIdx >= songs.length;
 
   return (
-    <div style={{ width: '100%', maxWidth: 980, margin: '0 auto' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
+    <div style={{ width: '100%', maxWidth: 1300, margin: '0 auto' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '7fr 2fr', gap: 24, alignItems: 'start' }}>
 
         {/* LEFT — Player */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -222,7 +241,7 @@ export default function PlayingPhase({
                 transition={{ delay: i * 0.04 }}
               >
                 {/* Song number badge */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: revealedTitles[idx] ? 6 : 10 }}>
                   <div style={{
                     width: 26, height: 26, borderRadius: 8,
                     background: idx === currentSongIdx
@@ -231,17 +250,33 @@ export default function PlayingPhase({
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 12, fontWeight: 800, color: idx === currentSongIdx ? '#fff' : 'var(--text-muted)',
                     border: idx !== currentSongIdx ? '1px solid var(--border)' : 'none',
+                    flexShrink: 0,
                   }}>
                     {idx}
                   </div>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>
-                    Nutka {idx}
-                    {idx === currentSongIdx && (
-                      <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--accent)', fontWeight: 600 }}>
-                        ▶ TERAZ GRA
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2 }}>
+                      Nutka {idx}
+                      {idx === currentSongIdx && (
+                        <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--accent)', fontWeight: 600 }}>
+                          ▶ TERAZ GRA
+                        </span>
+                      )}
+                    </span>
+                    {revealedTitles[idx] && (
+                      <span style={{
+                        fontSize: 11,
+                        color: 'var(--text-muted)',
+                        fontWeight: 500,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: 160,
+                      }}>
+                        🎵 {revealedTitles[idx]}
                       </span>
                     )}
-                  </span>
+                  </div>
                 </div>
 
                 {/* Who added it */}
