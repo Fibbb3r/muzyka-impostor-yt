@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Users, Play, Shield, Trash2, Crown, Music2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Room, Player, GameMode } from '../types/game';
+import words from '../data/words.json';
 
 interface Props {
   room: Room;
@@ -37,10 +38,20 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
       await supabase.from('players')
         .update({ is_impostor: true, impersonates_id: victim.id })
         .eq('id', impostor.id);
+    } else if (mode === 'word_impostor' && players.length >= 2) {
+      // Losuj impostora (bez ofiary, nie zna słowa)
+      const idx = Math.floor(Math.random() * players.length);
+      const impostor = players[idx];
+      
+      await supabase.from('players')
+        .update({ is_impostor: true, impersonates_id: null })
+        .eq('id', impostor.id);
     }
 
+    const currentWord = mode === 'word_impostor' ? words[Math.floor(Math.random() * words.length)] : null;
+
     await supabase.from('rooms')
-      .update({ status: 'picking', game_mode: mode, current_song_index: 0 })
+      .update({ status: 'picking', game_mode: mode, current_song_index: 0, current_word: currentWord })
       .eq('id', room.id);
 
     setStarting(false);
@@ -126,8 +137,8 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
           </div>
 
           <p className="label" style={{ marginBottom: 10 }}>Tryb gry</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
-            {(['normal', 'impostor'] as GameMode[]).map(m => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 20 }}>
+            {(['normal', 'impostor', 'word_impostor'] as GameMode[]).map(m => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
@@ -144,9 +155,9 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
                   textAlign: 'center',
                 }}
               >
-                {m === 'normal' ? '🎵 Bez impostora' : '🕵️ Impostor'}
+                {m === 'normal' ? '🎵 Klasyk' : m === 'impostor' ? '🕵️ Impostor' : '🗣️ Słowo Impostor'}
                 <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4, opacity: 0.7 }}>
-                  {m === 'normal' ? 'Zgaduj kto wybrał' : 'Jeden gracz się podszywa'}
+                  {m === 'normal' ? 'Zgaduj kto wybrał' : m === 'impostor' ? 'Jeden gracz się podszywa' : 'Impostor nie zna słowa'}
                 </div>
               </button>
             ))}

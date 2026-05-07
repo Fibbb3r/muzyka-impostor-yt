@@ -1,4 +1,4 @@
-export type GameMode = 'normal' | 'impostor';
+export type GameMode = 'normal' | 'impostor' | 'word_impostor';
 export type RoomStatus = 'lobby' | 'picking' | 'playing' | 'results';
 
 export interface Room {
@@ -7,6 +7,7 @@ export interface Room {
   status: RoomStatus;
   game_mode: GameMode;
   current_song_index: number;
+  current_word?: string | null;
 }
 
 export interface Player {

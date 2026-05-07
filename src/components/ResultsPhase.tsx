@@ -78,7 +78,7 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
               </div>
               <div style={{ fontSize: 28, fontWeight: 900 }}>{trueAuthor.name}</div>
 
-              {isImpostorSong && victim && (
+              {isImpostorSong && room.game_mode === 'impostor' && victim && (
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -86,6 +86,17 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
                 >
                   <span className="badge badge-red" style={{ fontSize: 12, padding: '6px 14px' }}>
                     🕵️ IMPOSTOR — podszywa się pod: {victim.name}
+                  </span>
+                </motion.div>
+              )}
+              {isImpostorSong && room.game_mode === 'word_impostor' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  style={{ marginTop: 12 }}
+                >
+                  <span className="badge badge-red" style={{ fontSize: 12, padding: '6px 14px' }}>
+                    🕵️ SŁOWO IMPOSTOR — nie znał słowa: {room.current_word}
                   </span>
                 </motion.div>
               )}
@@ -125,7 +136,7 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
                       Wskazał: <strong style={{ color: 'var(--text)' }}>{votedFor?.name ?? '?'}</strong>
                       {vote.is_impostor_guess && (
                         <span style={{ color: '#fb7185', marginLeft: 6 }}>
-                          · jako Impostor pod {players.find(p => p.id === vote.impostor_target_id)?.name ?? '?'}
+                          · jako Impostor{room.game_mode === 'impostor' ? ` pod ${players.find(p => p.id === vote.impostor_target_id)?.name ?? '?'}` : ''}
                         </span>
                       )}
                     </div>
@@ -134,7 +145,7 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
                   )}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
-                  {isCorrect && !vote?.is_impostor_guess && (
+                  {isCorrect && (!vote?.is_impostor_guess || !guessedImpostor) && (
                     <span className="badge badge-green">✓ Trafił!</span>
                   )}
                   {perfectGuess && (

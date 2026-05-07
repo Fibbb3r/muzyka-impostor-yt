@@ -222,8 +222,10 @@ export default function PlayingPhase({
             const idx = i + 1;
             const vote = myVotes[idx] ?? { voted_for_id: '', is_impostor_guess: false, impostor_target_id: '' };
             const isImpostorMode = room.game_mode === 'impostor';
+            const isWordImpostorMode = room.game_mode === 'word_impostor';
+            const showImpostorCheckbox = isImpostorMode || isWordImpostorMode;
             const amImpostor = currentPlayer.is_impostor;
-            const impostorAlreadyGuessed = isImpostorMode && Object.entries(myVotes).some(
+            const impostorAlreadyGuessed = showImpostorCheckbox && Object.entries(myVotes).some(
               ([k, v]) => parseInt(k) !== idx && v.is_impostor_guess
             );
 
@@ -294,7 +296,7 @@ export default function PlayingPhase({
                 </select>
 
                 {/* Impostor guess */}
-                {isImpostorMode && !amImpostor && vote.voted_for_id && !impostorAlreadyGuessed && (
+                {showImpostorCheckbox && !amImpostor && vote.voted_for_id && !impostorAlreadyGuessed && (
                   <div style={{ marginTop: 10 }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 8 }}>
                       <input
@@ -306,7 +308,7 @@ export default function PlayingPhase({
                       <span style={{ fontSize: 12, color: '#fb7185', fontWeight: 600 }}>🕵️ To Impostor!</span>
                     </label>
 
-                    {vote.is_impostor_guess && (
+                    {vote.is_impostor_guess && isImpostorMode && (
                       <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}>
                         <label className="label" style={{ marginBottom: 4, color: '#fb7185' }}>Pod kogo się podszywa?</label>
                         <select
@@ -325,7 +327,7 @@ export default function PlayingPhase({
                   </div>
                 )}
 
-                {isImpostorMode && !amImpostor && impostorAlreadyGuessed && !vote.is_impostor_guess && (
+                {showImpostorCheckbox && !amImpostor && impostorAlreadyGuessed && !vote.is_impostor_guess && (
                   <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
                     Już wskazałeś impostora w innej nutce
                   </p>

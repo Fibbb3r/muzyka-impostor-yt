@@ -38,12 +38,15 @@ export default function PickingPhase({ room, players, currentPlayer, isAdmin, so
 
   const myRole = currentPlayer.is_impostor
     ? (() => {
+        if (room.game_mode === 'word_impostor') {
+          return { impostor: true, victimName: null, wordImpostor: true };
+        }
         const victim = players.find(p => p.id === currentPlayer.impersonates_id);
-        return { impostor: true, victimName: victim?.name ?? '???' };
+        return { impostor: true, victimName: victim?.name ?? '???', wordImpostor: false };
       })()
-    : { impostor: false, victimName: '' };
+    : { impostor: false, victimName: '', wordImpostor: false };
 
-  const myDisplayName = currentPlayer.is_impostor
+  const myDisplayName = (currentPlayer.is_impostor && room.game_mode !== 'word_impostor')
     ? (players.find(p => p.id === currentPlayer.impersonates_id)?.name ?? currentPlayer.name)
     : currentPlayer.name;
 
@@ -110,18 +113,32 @@ export default function PickingPhase({ room, players, currentPlayer, isAdmin, so
           <>
             <div style={{ fontSize: 22, marginBottom: 6 }}>🕵️</div>
             <p style={{ fontWeight: 800, fontSize: 16, color: '#fb7185' }}>Jesteś Impostorem!</p>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
-              Podszyj się pod <strong style={{ color: 'var(--text)' }}>{myRole.victimName}</strong> — wybierz nutkę jako gdybyś był tą osobą
-            </p>
+            {myRole.wordImpostor ? (
+              <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
+                Nie znasz słowa, o którym myślą inni. Spróbuj dodać uniwersalną nutkę i wtopić się w tłum!
+              </p>
+            ) : (
+              <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
+                Podszyj się pod <strong style={{ color: 'var(--text)' }}>{myRole.victimName}</strong> — wybierz nutkę jako gdybyś był tą osobą
+              </p>
+            )}
           </>
         ) : (
           <>
             <p style={{ fontWeight: 700, fontSize: 15 }}>
               Wybierasz jako <span className="grad-text">{myDisplayName}</span>
             </p>
-            <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>
-              Wklej link do YouTube i wybierz 30-sekundowy fragment
-            </p>
+            {room.game_mode === 'word_impostor' && room.current_word ? (
+              <div style={{ marginTop: 8, padding: '8px', background: 'var(--bg3)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>Słowo na tę rundę:</p>
+                <p style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent)' }}>{room.current_word}</p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Wybierz nutkę, która pasuje do tego słowa!</p>
+              </div>
+            ) : (
+              <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>
+                Wklej link do YouTube i wybierz 30-sekundowy fragment
+              </p>
+            )}
           </>
         )}
       </motion.div>
