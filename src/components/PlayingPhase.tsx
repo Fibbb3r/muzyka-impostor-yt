@@ -232,46 +232,46 @@ export default function PlayingPhase({
                 key={idx}
                 className="card"
                 style={{
-                  border: `1px solid ${idx === currentSongIdx ? 'rgba(124,108,252,0.4)' : 'var(--border)'}`,
-                  background: idx === currentSongIdx ? 'rgba(124,108,252,0.06)' : 'var(--bg2)',
+                  border: `1px solid ${idx === currentSongIdx ? 'var(--accent)' : 'var(--border)'}`,
+                  background: idx === currentSongIdx ? 'var(--bg3)' : 'var(--bg2)',
                   padding: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
                 }}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
               >
                 {/* Song number badge */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: revealedTitles[idx] ? 6 : 10 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                   <div style={{
-                    width: 26, height: 26, borderRadius: 8,
+                    width: 28, height: 28, borderRadius: 'var(--radius)',
                     background: idx === currentSongIdx
-                      ? 'linear-gradient(135deg, var(--accent), var(--accent2))'
+                      ? 'var(--accent)'
                       : 'var(--bg3)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 800, color: idx === currentSongIdx ? '#fff' : 'var(--text-muted)',
+                    fontSize: 13, fontWeight: 800, color: idx === currentSongIdx ? '#fff' : 'var(--text-muted)',
                     border: idx !== currentSongIdx ? '1px solid var(--border)' : 'none',
                     flexShrink: 0,
                   }}>
                     {idx}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.2 }}>
                       Nutka {idx}
                       {idx === currentSongIdx && (
-                        <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--accent)', fontWeight: 600 }}>
+                        <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--accent)', fontWeight: 700 }}>
                           ▶ TERAZ GRA
                         </span>
                       )}
                     </span>
                     {revealedTitles[idx] && (
                       <span style={{
-                        fontSize: 11,
+                        fontSize: 12,
                         color: 'var(--text-muted)',
                         fontWeight: 500,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        maxWidth: 160,
+                        lineHeight: 1.4,
                       }}>
                         🎵 {revealedTitles[idx]}
                       </span>
