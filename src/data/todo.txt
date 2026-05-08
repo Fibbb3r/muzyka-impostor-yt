@@ -2,4 +2,15 @@ jak gracz da vote i potem zmieni to pokazuje sie na zielono potem
 
 opcja zeby moment byl dluzszy np 45 - 60 sekund
 
+opcja ile impostorów
+
+voteskip (do ustalenia ile %)
+
+muzyka z amongusa i takie tematyczne rzeczy
+
+lista slow dla impostorow zeby mieli latwiej zgadnac
+
+liczenie pkt
+
+
 
