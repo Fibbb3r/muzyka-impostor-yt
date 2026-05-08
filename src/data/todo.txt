@@ -1,0 +1,5 @@
+jak gracz da vote i potem zmieni to pokazuje sie na zielono potem
+
+opcja zeby moment byl dluzszy np 45 - 60 sekund
+
+
