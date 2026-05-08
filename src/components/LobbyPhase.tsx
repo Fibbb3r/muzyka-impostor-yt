@@ -42,7 +42,7 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
       // Losuj impostora (bez ofiary, nie zna słowa)
       const idx = Math.floor(Math.random() * players.length);
       const impostor = players[idx];
-      
+
       await supabase.from('players')
         .update({ is_impostor: true, impersonates_id: null })
         .eq('id', impostor.id);
