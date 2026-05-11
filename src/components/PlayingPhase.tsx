@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { ChevronRight, Music, Trophy } from 'lucide-react';
 import { motion } from 'framer-motion';
 import YTPlayer from './YTPlayer';
-import type { Room, Player, Song, Vote, VoteState } from '../types/game';
+import type { Room, Player, Song, Vote, VoteState, SkipVote } from '../types/game';
 
 interface Props {
   room: Room;
@@ -12,8 +12,10 @@ interface Props {
   isAdmin: boolean;
   songs: Song[];          // already sorted by created_at in Room.tsx
   votes: Vote[];
+  skipVotes: SkipVote[];
   myVotes: Record<number, VoteState>;
   onVoteChange: (songIdx: number, field: keyof VoteState, value: string | boolean) => void;
+  onVoteSkip: (songIdx: number) => void;
 }
 
 function extractVideoId(url: string): string | null {
@@ -32,7 +34,7 @@ function formatTime(s: number) {
 const DURATION = 30;
 
 export default function PlayingPhase({
-  room, players, currentPlayer, isAdmin, songs, myVotes, onVoteChange,
+  room, players, currentPlayer, isAdmin, songs, skipVotes, myVotes, onVoteChange, onVoteSkip,
 }: Props) {
   const currentSongIdx = room.current_song_index; // 1-based
   const currentSong = songs[currentSongIdx - 1] ?? null;
@@ -45,6 +47,9 @@ export default function PlayingPhase({
     return saved !== null ? parseInt(saved) : 80;
   });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoSkippedSongRef = useRef<number | null>(null);
+  const voteSkippedSongRef = useRef<number | null>(null);
+  const isAdvancingRef = useRef(false);
 
   // Titles revealed as songs play: { songIdx (1-based) -> title }
   const [revealedTitles, setRevealedTitles] = useState<Record<number, string>>({});
@@ -97,20 +102,57 @@ export default function PlayingPhase({
   }, []);
 
   async function nextSong() {
+    if (isAdvancingRef.current) return;
+    isAdvancingRef.current = true;
     const next = currentSongIdx + 1;
-    if (next > songs.length) {
-      await supabase.from('rooms')
-        .update({ status: 'results', current_song_index: 1 })
-        .eq('id', room.id);
-    } else {
-      await supabase.from('rooms')
-        .update({ current_song_index: next })
-        .eq('id', room.id);
+    try {
+      if (next > songs.length) {
+        await supabase.from('rooms')
+          .update({ status: 'results', current_song_index: 1 })
+          .eq('id', room.id);
+      } else {
+        await supabase.from('rooms')
+          .update({ current_song_index: next })
+          .eq('id', room.id);
+      }
+    } finally {
+      isAdvancingRef.current = false;
     }
   }
 
   const progress = songs.length > 0 ? Math.min((elapsed / DURATION) * 100, 100) : 0;
   const isLastSong = currentSongIdx >= songs.length;
+  const votesForCurrentSong = new Set(
+    skipVotes
+      .filter(v => v.song_index === currentSongIdx)
+      .map(v => v.voter_id)
+  ).size;
+  const skipThreshold = Math.max(1, Math.ceil(players.length * 0.5));
+  const hasVotedSkip = skipVotes.some(
+    v => v.song_index === currentSongIdx && v.voter_id === currentPlayer.id
+  );
+
+  // Only admin performs room transition to avoid duplicate updates from many clients.
+  useEffect(() => {
+    if (!isAdmin || songs.length === 0 || room.status !== 'playing') return;
+    if (elapsed < DURATION) return;
+    if (autoSkippedSongRef.current === currentSongIdx) return;
+
+    autoSkippedSongRef.current = currentSongIdx;
+    void nextSong();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elapsed, isAdmin, room.status, currentSongIdx, songs.length]);
+
+  // Vote-skip: only admin advances room to avoid duplicate updates.
+  useEffect(() => {
+    if (!isAdmin || songs.length === 0 || room.status !== 'playing') return;
+    if (votesForCurrentSong < skipThreshold) return;
+    if (voteSkippedSongRef.current === currentSongIdx) return;
+
+    voteSkippedSongRef.current = currentSongIdx;
+    void nextSong();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, room.status, songs.length, votesForCurrentSong, skipThreshold, currentSongIdx]);
 
   return (
     <div style={{ width: '100%', maxWidth: 1300, margin: '0 auto' }}>
@@ -195,6 +237,24 @@ export default function PlayingPhase({
           </div>
 
           {/* Admin controls */}
+          <div className="card" style={{ padding: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontWeight: 700, fontSize: 14 }}>Vote skip</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  {votesForCurrentSong}/{skipThreshold} głosów
+                </span>
+              </div>
+              <button
+                className="btn btn-ghost"
+                onClick={() => onVoteSkip(currentSongIdx)}
+                disabled={songs.length === 0 || hasVotedSkip}
+              >
+                {hasVotedSkip ? 'Głos oddany' : 'Pomiń nutkę'}
+              </button>
+            </div>
+          </div>
+
           {isAdmin && (
             <button
               className="btn btn-primary"

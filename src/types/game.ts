@@ -45,3 +45,11 @@ export interface VoteState {
   is_impostor_guess: boolean;
   impostor_target_id: string;
 }
+
+export interface SkipVote {
+  id: string;
+  room_id: string;
+  song_index: number;
+  voter_id: string;
+  created_at?: string;
+}

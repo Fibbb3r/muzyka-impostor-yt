@@ -84,6 +84,10 @@ export default function PickingPhase({ room, players, currentPlayer, isAdmin, so
         supabase.from('songs').update({ song_order: i + 1 }).eq('id', s.id)
       )
     );
+
+    // Reset vote-skip votes from previous rounds so the new game starts cleanly.
+    await supabase.from('song_skip_votes').delete().eq('room_id', room.id);
+
     await supabase.from('rooms')
       .update({ status: 'playing', current_song_index: 1 })
       .eq('id', room.id);

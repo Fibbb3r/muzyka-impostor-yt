@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { motion } from 'framer-motion';
@@ -8,7 +8,7 @@ import PickingPhase from '../components/PickingPhase';
 import PlayingPhase from '../components/PlayingPhase';
 import ResultsPhase from '../components/ResultsPhase';
 import ErrorBoundary from '../components/ErrorBoundary';
-import type { Room, Player, Song, Vote, VoteState } from '../types/game';
+import type { Room, Player, Song, Vote, VoteState, SkipVote } from '../types/game';
 
 function sortSongs(s: Song[]): Song[] {
   return [...s].sort((a, b) => {
@@ -31,36 +31,51 @@ export default function RoomPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
   const [votes, setVotes] = useState<Vote[]>([]);
+  const [skipVotes, setSkipVotes] = useState<SkipVote[]>([]);
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [myVotes, setMyVotes] = useState<Record<number, VoteState>>({});
   const [toast, setToast] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [kicked, setKicked] = useState(false);
+  const previousRoomRef = useRef<Room | null>(null);
 
   // ── Fetch all data ──────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     if (!playerId) { navigate('/'); return; }
+    try {
+      const { data: roomData, error: roomErr } = await supabase
+        .from('rooms').select('*').eq('code', GLOBAL_ROOM_CODE).single();
+      if (roomErr || !roomData) { navigate('/'); return; }
 
-    const { data: roomData } = await supabase
-      .from('rooms').select('*').eq('code', GLOBAL_ROOM_CODE).single();
-    if (!roomData) { navigate('/'); return; }
+      const [{ data: pData }, { data: sData }, { data: vData }] = await Promise.all([
+        supabase.from('players').select('*').eq('room_id', roomData.id),
+        supabase.from('songs').select('*').eq('room_id', roomData.id),
+        supabase.from('votes').select('*').eq('room_id', roomData.id),
+      ]);
 
-    const [{ data: pData }, { data: sData }, { data: vData }] = await Promise.all([
-      supabase.from('players').select('*').eq('room_id', roomData.id),
-      supabase.from('songs').select('*').eq('room_id', roomData.id),
-      supabase.from('votes').select('*').eq('room_id', roomData.id),
-    ]);
+      // song_skip_votes is non-critical for initial render; ignore read errors gracefully
+      const { data: svData } = await supabase
+        .from('song_skip_votes')
+        .select('*')
+        .eq('room_id', roomData.id);
 
-    setRoom(roomData as Room);
-    const ps = (pData ?? []) as Player[];
-    setPlayers(ps);
-    setSongs(sortSongs((sData ?? []) as Song[]));
-    setVotes((vData ?? []) as Vote[]);
+      setRoom(roomData as Room);
+      const ps = (pData ?? []) as Player[];
+      setPlayers(ps);
+      setSongs(sortSongs((sData ?? []) as Song[]));
+      setVotes((vData ?? []) as Vote[]);
+      setSkipVotes((svData ?? []) as SkipVote[]);
 
-    const me = ps.find(p => p.id === playerId) ?? null;
-    setCurrentPlayer(me);
-    setLoading(false);
-    return { roomData, ps };
+      const me = ps.find(p => p.id === playerId) ?? null;
+      if (!me) {
+        sessionStorage.clear();
+        navigate('/');
+        return;
+      }
+      setCurrentPlayer(me);
+    } finally {
+      setLoading(false);
+    }
   }, [playerId, navigate]);
 
   // ── Initial load ────────────────────────────────────────────
@@ -104,6 +119,11 @@ export default function RoomPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'votes' }, () => {
         supabase.from('votes').select('*').eq('room_id', room.id).then(({ data }) => {
           if (data) setVotes(data as Vote[]);
+        });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'song_skip_votes' }, () => {
+        supabase.from('song_skip_votes').select('*').eq('room_id', room.id).then(({ data }) => {
+          if (data) setSkipVotes(data as SkipVote[]);
         });
       })
       .subscribe();
@@ -157,6 +177,42 @@ export default function RoomPage() {
       }, { onConflict: 'room_id,voter_id,song_index' });
     }, 0);
   }, [room, currentPlayer, songs]);
+
+  // ── Vote skip handler ────────────────────────────────────────
+  const handleVoteSkip = useCallback(async (songIdx: number) => {
+    if (!room || !currentPlayer || room.status !== 'playing') return;
+
+    await supabase.from('song_skip_votes').upsert({
+      room_id: room.id,
+      song_index: songIdx,
+      voter_id: currentPlayer.id,
+    }, { onConflict: 'room_id,song_index,voter_id' });
+  }, [room, currentPlayer]);
+
+  // ── Vote-skip toast when song changes ────────────────────────
+  useEffect(() => {
+    if (!room) return;
+
+    const previousRoom = previousRoomRef.current;
+    if (
+      previousRoom &&
+      previousRoom.status === 'playing' &&
+      room.current_song_index !== previousRoom.current_song_index
+    ) {
+      const previousSongIdx = previousRoom.current_song_index;
+      const voters = new Set(
+        skipVotes
+          .filter(v => v.song_index === previousSongIdx)
+          .map(v => v.voter_id)
+      );
+      const threshold = Math.max(1, Math.ceil(players.length * 0.5));
+      if (voters.size >= threshold) {
+        setToast('Nutka pominięta głosami!');
+      }
+    }
+
+    previousRoomRef.current = room;
+  }, [room, skipVotes, players.length]);
 
   // ── Kick player ─────────────────────────────────────────────
   async function kickPlayer(p: Player) {
@@ -218,10 +274,18 @@ export default function RoomPage() {
     );
   }
 
-  if (loading || !room || !currentPlayer) {
+  if (loading || !room) {
     return (
       <div className="page" style={{ color: 'var(--text-muted)' }}>
         <div style={{ fontSize: 14 }}>Ładowanie…</div>
+      </div>
+    );
+  }
+
+  if (!currentPlayer) {
+    return (
+      <div className="page" style={{ color: 'var(--text-muted)' }}>
+        <div style={{ fontSize: 14 }}>Nie znaleziono gracza w pokoju. Wróć do lobby.</div>
       </div>
     );
   }
@@ -259,8 +323,10 @@ export default function RoomPage() {
             isAdmin={isAdmin}
             songs={songs}
             votes={votes}
+            skipVotes={skipVotes}
             myVotes={myVotes}
             onVoteChange={handleVoteChange}
+            onVoteSkip={handleVoteSkip}
           />
         )}
 
