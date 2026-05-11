@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { ChevronRight, Music, Trophy } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -47,9 +47,15 @@ export default function PlayingPhase({
     return saved !== null ? parseInt(saved) : 80;
   });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const autoSkippedSongRef = useRef<number | null>(null);
-  const voteSkippedSongRef = useRef<number | null>(null);
+  /** Jedna straż na nutkę: koniec czasu OR vote-skip — inaczej oba efekty odpalały nextSong() (1→2→3). */
+  const advancedFromSongRef = useRef<number | null>(null);
   const isAdvancingRef = useRef(false);
+  /**
+   * Po zmianie nutki `elapsed` potrafi być jeszcze 30 z poprzedniej — `elapsed >= DURATION` na nowym
+   * indeksie odpalał drugi nextSong (2→3). Koniec timera liczymy dopiero po 800 ms (jak start nutki);
+   * wczesny skip: tylko przy elapsed < DURATION.
+   */
+  const playbackReadyForTimerRef = useRef(false);
 
   // Titles revealed as songs play: { songIdx (1-based) -> title }
   const [revealedTitles, setRevealedTitles] = useState<Record<number, string>>({});
@@ -86,12 +92,21 @@ export default function PlayingPhase({
     }, 1000);
   }, []);
 
-  // Auto-start when song changes
-  useEffect(() => {
+  // Zeruj czas natychmiast przy zmianie nutki — zanim efekty „auto-next” na elapsed
+  // zobaczą złą kombinację (elapsed=30 + nowy currentSongIdx), co mogło pomijać nutkę.
+  useLayoutEffect(() => {
+    playbackReadyForTimerRef.current = false;
     setElapsed(0);
     setPlaying(false);
     if (intervalRef.current) clearInterval(intervalRef.current);
-    const t = setTimeout(startTimer, 800);
+    advancedFromSongRef.current = null;
+  }, [currentSongIdx]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      playbackReadyForTimerRef.current = true;
+      startTimer();
+    }, 800);
     return () => { clearTimeout(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSongIdx]);
@@ -101,20 +116,45 @@ export default function PlayingPhase({
     if (intervalRef.current) clearInterval(intervalRef.current);
   }, []);
 
+  /** Jeden „krok”: tylko jeśli w DB nadal jest `fromIdx`; drugi konkurent dostanie 0 wierszy. */
   async function nextSong() {
     if (isAdvancingRef.current) return;
     isAdvancingRef.current = true;
-    const next = currentSongIdx + 1;
+    const fromIdx = room.current_song_index;
+    const songsLen = songs.length;
+
+    function clearSongGuardsIfNeeded() {
+      if (advancedFromSongRef.current === fromIdx) advancedFromSongRef.current = null;
+    }
+
     try {
-      if (next > songs.length) {
-        await supabase.from('rooms')
-          .update({ status: 'results', current_song_index: 1 })
-          .eq('id', room.id);
+      let row: { id: string } | null = null;
+      if (fromIdx + 1 > songsLen) {
+        const nextStatus = room.game_mode === 'word_impostor' ? 'word_finale' : 'results';
+        const { data, error } = await supabase
+          .from('rooms')
+          .update({ status: nextStatus, current_song_index: 1, word_finale_step: 0 })
+          .eq('id', room.id)
+          .eq('current_song_index', fromIdx)
+          .select('id')
+          .maybeSingle();
+        if (error) throw error;
+        row = data;
       } else {
-        await supabase.from('rooms')
-          .update({ current_song_index: next })
-          .eq('id', room.id);
+        const nextIdx = fromIdx + 1;
+        const { data, error } = await supabase
+          .from('rooms')
+          .update({ current_song_index: nextIdx })
+          .eq('id', room.id)
+          .eq('current_song_index', fromIdx)
+          .select('id')
+          .maybeSingle();
+        if (error) throw error;
+        row = data;
       }
+      if (!row) clearSongGuardsIfNeeded();
+    } catch {
+      clearSongGuardsIfNeeded();
     } finally {
       isAdvancingRef.current = false;
     }
@@ -132,27 +172,31 @@ export default function PlayingPhase({
     v => v.song_index === currentSongIdx && v.voter_id === currentPlayer.id
   );
 
-  // Only admin performs room transition to avoid duplicate updates from many clients.
+  // Tylko admin. Jeden efekt + jedna straż na nutkę.
+  // - Wczesny skip: próg głosów i elapsed < 30 (nie mylić z „końcem” poprzedniej nutki).
+  // - Koniec nutki po timerze: elapsed >= 30 dopiero gdy playbackReadyForTimerRef (po 800 ms od wejścia na nutkę).
+  // Dowolny klient może wywołać nextSong — aktualizacja w DB jest atomowa (eq. current_song_index).
+  // Dzięki temu vote-skip i koniec timera działają nawet gdy karta admina jest nieaktywna / w tle.
   useEffect(() => {
-    if (!isAdmin || songs.length === 0 || room.status !== 'playing') return;
-    if (elapsed < DURATION) return;
-    if (autoSkippedSongRef.current === currentSongIdx) return;
+    if (songs.length === 0 || room.status !== 'playing') return;
+    if (advancedFromSongRef.current === currentSongIdx) return;
 
-    autoSkippedSongRef.current = currentSongIdx;
+    const skipWins = votesForCurrentSong >= skipThreshold;
+    const earlySkip = skipWins && elapsed < DURATION;
+    const timerEnd = elapsed >= DURATION && playbackReadyForTimerRef.current;
+    if (!earlySkip && !timerEnd) return;
+
+    advancedFromSongRef.current = currentSongIdx;
     void nextSong();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [elapsed, isAdmin, room.status, currentSongIdx, songs.length]);
-
-  // Vote-skip: only admin advances room to avoid duplicate updates.
-  useEffect(() => {
-    if (!isAdmin || songs.length === 0 || room.status !== 'playing') return;
-    if (votesForCurrentSong < skipThreshold) return;
-    if (voteSkippedSongRef.current === currentSongIdx) return;
-
-    voteSkippedSongRef.current = currentSongIdx;
-    void nextSong();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, room.status, songs.length, votesForCurrentSong, skipThreshold, currentSongIdx]);
+  }, [
+    elapsed,
+    room.status,
+    currentSongIdx,
+    songs.length,
+    votesForCurrentSong,
+    skipThreshold,
+  ]);
 
   return (
     <div style={{ width: '100%', maxWidth: 1300, margin: '0 auto' }}>

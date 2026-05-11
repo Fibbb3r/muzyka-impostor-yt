@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "verify:scoring": "npx --yes tsx scripts/verify-scoring.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.3",

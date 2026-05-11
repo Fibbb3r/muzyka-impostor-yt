@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { ChevronRight, RotateCcw, Trophy, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Room, Player, Song, Vote } from '../types/game';
+import { formatPointsPts, scoreSongPoints, cumulativeScoresThroughSong } from '../lib/scoringSong';
+import WordImpostorDetectiveList from './WordImpostorDetectiveList';
 
 interface Props {
   room: Room;
@@ -27,12 +29,53 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
 
   const songVotes = votes.filter(v => v.song_index === idx);
 
+  const pointsThisSong =
+    song && trueAuthorId
+      ? scoreSongPoints({
+          gameMode: room.game_mode,
+          songIndex: idx,
+          votes,
+          players,
+          trueAuthorId,
+        })
+      : Object.fromEntries(players.map(p => [p.id, 0]));
+
+  const showPodium = room.game_mode !== 'word_impostor' && Boolean(song && trueAuthorId);
+
+  const rankedByPoints = useMemo(() => {
+    if (!showPodium || songs.length === 0) return [];
+    const totals = cumulativeScoresThroughSong({
+      gameMode: room.game_mode,
+      votes,
+      players,
+      songs,
+      throughSongIndex: idx,
+    });
+    return [...players]
+      .map(p => ({ player: p, points: totals[p.id] ?? 0 }))
+      .sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        return a.player.name.localeCompare(b.player.name, 'pl', { sensitivity: 'base' });
+      });
+  }, [showPodium, songs, idx, votes, players, room.game_mode]);
+
   async function next() {
     setRevealing(true);
     const next = room.current_song_index + 1;
     if (next > songs.length) {
-      // back to lobby
-      await supabase.from('rooms').update({ status: 'lobby', current_song_index: 0 }).eq('id', room.id);
+      if (room.game_mode === 'word_impostor') {
+        await supabase
+          .from('rooms')
+          .update({
+            status: 'word_finale',
+            word_finale_step: 0,
+            impostor_word_guess: null,
+          })
+          .eq('id', room.id);
+      } else {
+        await supabase.from('song_skip_votes').delete().eq('room_id', room.id);
+        await supabase.from('rooms').update({ status: 'lobby', current_song_index: 0 }).eq('id', room.id);
+      }
     } else {
       await supabase.from('rooms').update({ current_song_index: next }).eq('id', room.id);
     }
@@ -96,7 +139,7 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
                   style={{ marginTop: 12 }}
                 >
                   <span className="badge badge-red" style={{ fontSize: 12, padding: '6px 14px' }}>
-                    🕵️ SŁOWO IMPOSTOR — nie znał słowa: {room.current_word}
+                    🕵️ SŁOWO IMPOSTOR — nie znał tajnego słowa
                   </span>
                 </motion.div>
               )}
@@ -118,13 +161,20 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
             const guessedImpostor = vote?.is_impostor_guess && vote.voted_for_id === impostor?.id;
             const guessedVictim = guessedImpostor && vote?.impostor_target_id === victim?.id;
             const perfectGuess = guessedImpostor && guessedVictim;
+            const pts = room.game_mode === 'word_impostor' ? null : (pointsThisSong[voter.id] ?? 0);
+            const highlights =
+              room.game_mode !== 'word_impostor' &&
+              (isCorrect ||
+                perfectGuess ||
+                (guessedImpostor && !guessedVictim) ||
+                (pts !== null && pts > 0));
 
             return (
               <div key={voter.id} style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '12px 14px', borderRadius: 12,
-                background: isCorrect ? 'rgba(34,211,160,0.07)' : 'var(--bg3)',
-                border: `1px solid ${isCorrect ? 'rgba(34,211,160,0.25)' : 'var(--border)'}`,
+                background: highlights ? 'rgba(34,211,160,0.07)' : 'var(--bg3)',
+                border: `1px solid ${highlights ? 'rgba(34,211,160,0.25)' : 'var(--border)'}`,
               }}>
                 <div className="avatar" style={{ width: 34, height: 34, fontSize: 13 }}>
                   {voter.name[0].toUpperCase()}
@@ -147,6 +197,13 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
                   )}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+                  <span style={{
+                    fontSize: 12,
+                    fontWeight: 800,
+                    color: pts === null ? 'var(--text-muted)' : pts > 0 ? 'var(--accent2)' : 'var(--text-muted)',
+                  }}>
+                    {pts === null ? '—' : formatPointsPts(pts)}
+                  </span>
                   {room.game_mode !== 'word_impostor' && isCorrect && (!vote?.is_impostor_guess || !guessedImpostor) && (
                     <span className="badge badge-green">✓ Trafił!</span>
                   )}
@@ -169,6 +226,134 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
         </div>
       </div>
 
+      {room.game_mode === 'word_impostor' && impostor && (
+        <div style={{ marginBottom: 20 }}>
+          <WordImpostorDetectiveList
+            players={players}
+            votes={votes}
+            impostor={impostor}
+            throughSongIndex={idx}
+          />
+        </div>
+      )}
+
+      {/* Podium — suma punktów od nutki 1 do bieżącej */}
+      {showPodium && rankedByPoints.length > 0 && (
+        <motion.div
+          key={`podium-${idx}`}
+          className="card"
+          style={{ marginBottom: 20, overflow: 'hidden' }}
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: 'easeOut', delay: 0.12 }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 6 }}>
+            <Trophy size={20} color="var(--warn)" />
+            <span style={{ fontWeight: 900, fontSize: 17 }}>Podium — suma nutek 1–{idx}</span>
+          </div>
+          <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, marginBottom: 18 }}>
+            Ranking zlicza wszystkie nutki pokazane do tego momentu
+          </p>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-end',
+              justifyContent: 'center',
+              gap: 10,
+              minHeight: 168,
+              marginBottom: rankedByPoints.length > 3 ? 16 : 0,
+            }}
+          >
+            {[1, 0, 2].map(slot => {
+              const row = rankedByPoints[slot];
+              if (!row) return <div key={`empty-${slot}`} style={{ flex: 1, maxWidth: 120 }} />;
+              const medals = ['🥇', '🥈', '🥉'] as const;
+              const h = slot === 0 ? 132 : slot === 1 ? 104 : 84;
+              const grad =
+                slot === 0
+                  ? 'linear-gradient(180deg, #fbbf24 0%, #b45309 100%)'
+                  : slot === 1
+                    ? 'linear-gradient(180deg, #94a3b8 0%, #475569 100%)'
+                    : 'linear-gradient(180deg, #d97757 0%, #9a3412 100%)';
+
+              return (
+                <motion.div
+                  key={row.player.id}
+                  style={{ flex: 1, maxWidth: 130, display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+                  initial={{ opacity: 0, y: 28, scale: 0.94 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.38, delay: 0.06 * (slot === 0 ? 1 : slot === 1 ? 0 : 2) }}
+                >
+                  <span style={{ fontSize: 26, lineHeight: 1, marginBottom: 6 }}>{medals[slot]}</span>
+                  <div style={{
+                    fontSize: 13, fontWeight: 800, textAlign: 'center', lineHeight: 1.25,
+                    marginBottom: 6, maxWidth: '100%', wordBreak: 'break-word',
+                  }}>
+                    {row.player.name}
+                  </div>
+                  <div style={{
+                    fontSize: 13, fontWeight: 900, color: row.points > 0 ? 'var(--accent2)' : 'var(--text-muted)',
+                    marginBottom: 8,
+                  }}>
+                    {formatPointsPts(row.points)}
+                  </div>
+                  <div
+                    style={{
+                      width: '100%',
+                      height: h,
+                      borderRadius: '12px 12px 6px 6px',
+                      background: grad,
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2), 0 12px 28px rgba(0,0,0,0.35)',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+                      paddingBottom: 8,
+                      color: '#fff',
+                      fontWeight: 900,
+                      fontSize: 15,
+                    }}
+                  >
+                    {slot + 1}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {rankedByPoints.length > 3 && (
+            <div style={{
+              paddingTop: 12,
+              borderTop: '1px solid var(--border)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+            }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.03em' }}>
+                POZOSTALI
+              </span>
+              {rankedByPoints.slice(3).map((row, i) => (
+                <div
+                  key={row.player.id}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 10px', borderRadius: 10, background: 'var(--bg3)',
+                  }}
+                >
+                  <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', width: 22 }}>{4 + i}</span>
+                  <span style={{ flex: 1, fontWeight: 700, fontSize: 13 }}>{row.player.name}</span>
+                  <span style={{
+                    fontSize: 12, fontWeight: 800,
+                    color: row.points > 0 ? 'var(--accent2)' : 'var(--text-muted)',
+                  }}>
+                    {formatPointsPts(row.points)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      )}
+
       {/* Admin navigation */}
       {isAdmin && (
         <button
@@ -178,7 +363,9 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
           disabled={revealing}
         >
           {isLastSong
-            ? <><RotateCcw size={16} /> Powrót do lobby</>
+            ? room.game_mode === 'word_impostor'
+              ? <><ChevronRight size={16} /> Finał — wybór słowa</>
+              : <><RotateCcw size={16} /> Powrót do lobby</>
             : <><ChevronRight size={16} /> Dalej — Nutka {idx + 1}/{songs.length}</>
           }
         </button>

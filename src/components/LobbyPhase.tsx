@@ -21,9 +21,10 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
     if (players.length < 2) return;
     setStarting(true);
 
-    // Reset: usuń stare nutki i głosy
+    // Reset: usuń stare nutki, głosy i głosy skip (żeby nie mieszały się między rundami)
     await supabase.from('votes').delete().eq('room_id', room.id);
     await supabase.from('songs').delete().eq('room_id', room.id);
+    await supabase.from('song_skip_votes').delete().eq('room_id', room.id);
 
     // Resetuj graczy (impostor)
     await supabase.from('players').update({ is_impostor: false, impersonates_id: null }).eq('room_id', room.id);
@@ -51,7 +52,14 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
     const currentWord = mode === 'word_impostor' ? words[Math.floor(Math.random() * words.length)] : null;
 
     await supabase.from('rooms')
-      .update({ status: 'picking', game_mode: mode, current_song_index: 0, current_word: currentWord })
+      .update({
+        status: 'picking',
+        game_mode: mode,
+        current_song_index: 0,
+        current_word: currentWord,
+        impostor_word_guess: null,
+        word_finale_step: 0,
+      })
       .eq('id', room.id);
 
     setStarting(false);

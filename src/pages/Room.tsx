@@ -7,6 +7,7 @@ import LobbyPhase from '../components/LobbyPhase';
 import PickingPhase from '../components/PickingPhase';
 import PlayingPhase from '../components/PlayingPhase';
 import ResultsPhase from '../components/ResultsPhase';
+import WordImpostorFinalePhase from '../components/WordImpostorFinalePhase';
 import ErrorBoundary from '../components/ErrorBoundary';
 import type { Room, Player, Song, Vote, VoteState, SkipVote } from '../types/game';
 
@@ -336,6 +337,17 @@ export default function RoomPage() {
             players={players}
             songs={songs}
             votes={votes}
+            isAdmin={isAdmin}
+          />
+        )}
+
+        {room.status === 'word_finale' && (
+          <WordImpostorFinalePhase
+            room={room}
+            players={players}
+            songs={songs}
+            votes={votes}
+            currentPlayer={currentPlayer}
             isAdmin={isAdmin}
           />
         )}

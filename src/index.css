@@ -137,6 +137,12 @@ html, body, #root {
   border-color: var(--text);
 }
 
+/* <select> na Windows/Chrome: jawne kolory opcji (kontrast listy). */
+select.input option {
+  background-color: #f1f5f9;
+  color: #0f1115;
+}
+
 /* ── Labels ── */
 .label {
   font-size: 13px;

@@ -1,5 +1,5 @@
 export type GameMode = 'normal' | 'impostor' | 'word_impostor';
-export type RoomStatus = 'lobby' | 'picking' | 'playing' | 'results';
+export type RoomStatus = 'lobby' | 'picking' | 'playing' | 'results' | 'word_finale';
 
 export interface Room {
   id: string;
@@ -8,6 +8,8 @@ export interface Room {
   game_mode: GameMode;
   current_song_index: number;
   current_word?: string | null;
+  impostor_word_guess?: string | null;
+  word_finale_step?: number | null;
 }
 
 export interface Player {
