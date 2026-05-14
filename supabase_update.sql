@@ -4,6 +4,9 @@ ALTER TABLE rooms ADD COLUMN IF NOT EXISTS current_word text;
 -- Kolumna na strzał impostora (co wytypował za tajne słowo)
 ALTER TABLE rooms ADD COLUMN IF NOT EXISTS impostor_word_guess text;
 
+-- Strzały wielu impostorów (mapa player_id → słowo); przy jednym impostorze wciąż można użyć samego impostor_word_guess
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS impostor_word_guesses jsonb DEFAULT '{}'::jsonb;
+
 -- Kolumna na krok finału word_impostor (0 = wybór słowa, 1..N = recap nutek, N+1 = werdykt)
 ALTER TABLE rooms ADD COLUMN IF NOT EXISTS word_finale_step integer NOT NULL DEFAULT 0;
 

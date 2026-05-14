@@ -9,6 +9,8 @@ export interface Room {
   current_song_index: number;
   current_word?: string | null;
   impostor_word_guess?: string | null;
+  /** Strzały słowa w finale (player_id → słowo), gdy jest więcej niż jeden impostor. */
+  impostor_word_guesses?: Record<string, string> | null;
   word_finale_step?: number | null;
 }
 

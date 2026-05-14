@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Users, Play, Shield, Trash2, Crown, Music2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,6 +16,12 @@ interface Props {
 export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKick }: Props) {
   const [starting, setStarting] = useState(false);
   const [mode, setMode] = useState<GameMode>('normal');
+  const maxImpostors = players.length >= 2 ? players.length - 1 : 1;
+  const [impostorCount, setImpostorCount] = useState(1);
+
+  useEffect(() => {
+    setImpostorCount(c => Math.min(Math.max(1, c), maxImpostors));
+  }, [maxImpostors]);
 
   async function startGame() {
     if (players.length < 2) return;
@@ -30,23 +36,28 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
     await supabase.from('players').update({ is_impostor: false, impersonates_id: null }).eq('room_id', room.id);
 
     if (mode === 'impostor' && players.length >= 2) {
-      // Losuj impostora
-      const idx = Math.floor(Math.random() * players.length);
-      const impostor = players[idx];
-      const others = players.filter(p => p.id !== impostor.id);
-      const victim = others[Math.floor(Math.random() * others.length)];
+      const k = Math.min(Math.max(1, impostorCount), players.length - 1);
+      const shuffled = [...players].sort(() => Math.random() - 0.5);
+      const impostors = shuffled.slice(0, k);
+      const impostorIds = new Set(impostors.map(p => p.id));
 
-      await supabase.from('players')
-        .update({ is_impostor: true, impersonates_id: victim.id })
-        .eq('id', impostor.id);
+      for (const imp of impostors) {
+        const victims = players.filter(p => !impostorIds.has(p.id));
+        const victim = victims[Math.floor(Math.random() * victims.length)];
+        await supabase.from('players')
+          .update({ is_impostor: true, impersonates_id: victim.id })
+          .eq('id', imp.id);
+      }
     } else if (mode === 'word_impostor' && players.length >= 2) {
-      // Losuj impostora (bez ofiary, nie zna słowa)
-      const idx = Math.floor(Math.random() * players.length);
-      const impostor = players[idx];
+      const k = Math.min(Math.max(1, impostorCount), players.length - 1);
+      const shuffled = [...players].sort(() => Math.random() - 0.5);
+      const impostors = shuffled.slice(0, k);
 
-      await supabase.from('players')
-        .update({ is_impostor: true, impersonates_id: null })
-        .eq('id', impostor.id);
+      for (const imp of impostors) {
+        await supabase.from('players')
+          .update({ is_impostor: true, impersonates_id: null })
+          .eq('id', imp.id);
+      }
     }
 
     const currentWord = mode === 'word_impostor' ? words[Math.floor(Math.random() * words.length)] : null;
@@ -58,6 +69,7 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
         current_song_index: 0,
         current_word: currentWord,
         impostor_word_guess: null,
+        impostor_word_guesses: {},
         word_finale_step: 0,
       })
       .eq('id', room.id);
@@ -165,11 +177,39 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
               >
                 {m === 'normal' ? '🎵 Klasyk' : m === 'impostor' ? '🕵️ Impostor' : '🗣️ Słowo Impostor'}
                 <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4, opacity: 0.7 }}>
-                  {m === 'normal' ? 'Zgaduj kto wybrał' : m === 'impostor' ? 'Jeden gracz się podszywa' : 'Impostor nie zna słowa'}
+                  {m === 'normal' ? 'Zgaduj kto wybrał' : m === 'impostor' ? 'Gracze podszywają się pod innych' : 'Impostorzy nie znają słowa'}
                 </div>
               </button>
             ))}
           </div>
+
+          {(mode === 'impostor' || mode === 'word_impostor') && players.length >= 2 && (
+            <>
+              <p className="label" style={{ marginBottom: 10 }}>Liczba impostorów</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                <input
+                  type="range"
+                  min={1}
+                  max={maxImpostors}
+                  value={Math.min(impostorCount, maxImpostors)}
+                  onChange={e => setImpostorCount(parseInt(e.target.value, 10))}
+                  style={{ flex: 1, accentColor: 'var(--accent)' }}
+                />
+                <span style={{
+                  minWidth: 36,
+                  textAlign: 'center',
+                  fontWeight: 800,
+                  fontSize: 16,
+                  color: 'var(--accent)',
+                }}>
+                  {Math.min(impostorCount, maxImpostors)}
+                </span>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: -12, marginBottom: 20 }}>
+                Max {maxImpostors} — zostaje co najmniej jeden nie-impostor.
+              </p>
+            </>
+          )}
 
           <button
             className="btn btn-primary btn-lg"

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { Room, Player, Song, Vote } from '../types/game';
 import { formatPointsPts, scoreSongPoints, cumulativeScoresThroughSong } from '../lib/scoringSong';
 import WordImpostorDetectiveList from './WordImpostorDetectiveList';
+import { useYoutubeTitles } from '../lib/youtube';
 
 interface Props {
   room: Room;
@@ -17,15 +18,22 @@ interface Props {
 export default function ResultsPhase({ room, players, songs, votes, isAdmin }: Props) {
   const [revealing, setRevealing] = useState(false);
 
+  // Fetch titles for all songs at once (oEmbed, no API key)
+  const allUrls = songs.map(s => s.youtube_url);
+  const urlTitles = useYoutubeTitles(allUrls);
+
   const idx = room.current_song_index; // current song being shown
   const song = songs[idx - 1];
   const trueAuthorId = song?.player_id;
   const trueAuthor = players.find(p => p.id === trueAuthorId);
 
-  // In impostor mode: if true author is impostor, actual song "label" is victim name
-  const impostor = players.find(p => p.is_impostor);
-  const isImpostorSong = impostor?.id === trueAuthorId;
-  const victim = isImpostorSong ? players.find(p => p.id === impostor?.impersonates_id) : null;
+  const impostors = players.filter(p => p.is_impostor);
+  const songImpostor = trueAuthor?.is_impostor ? trueAuthor : undefined;
+  const isImpostorSong = Boolean(songImpostor);
+  const victim =
+    isImpostorSong && room.game_mode === 'impostor' && songImpostor
+      ? players.find(p => p.id === songImpostor.impersonates_id) ?? null
+      : null;
 
   const songVotes = votes.filter(v => v.song_index === idx);
 
@@ -70,6 +78,7 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
             status: 'word_finale',
             word_finale_step: 0,
             impostor_word_guess: null,
+            impostor_word_guesses: {},
           })
           .eq('id', room.id);
       } else {
@@ -120,6 +129,20 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
                 {trueAuthor.name[0].toUpperCase()}
               </div>
               <div style={{ fontSize: 28, fontWeight: 900 }}>{trueAuthor.name}</div>
+              {song && (
+                <div style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: 'var(--accent)',
+                  marginTop: 10,
+                  lineHeight: 1.35,
+                  maxWidth: 420,
+                  marginLeft: 'auto',
+                  marginRight: 'auto',
+                }}>
+                  🎵 {urlTitles[song.youtube_url] ?? '…'}
+                </div>
+              )}
 
               {isImpostorSong && room.game_mode === 'impostor' && victim && (
                 <motion.div
@@ -158,9 +181,15 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
             const vote = songVotes.find(v => v.voter_id === voter.id);
             const votedFor = players.find(p => p.id === vote?.voted_for_id);
             const isCorrect = vote?.voted_for_id === trueAuthorId;
-            const guessedImpostor = vote?.is_impostor_guess && vote.voted_for_id === impostor?.id;
-            const guessedVictim = guessedImpostor && vote?.impostor_target_id === victim?.id;
-            const perfectGuess = guessedImpostor && guessedVictim;
+            const guessedImpostorMusic =
+              room.game_mode === 'impostor' &&
+              Boolean(vote?.is_impostor_guess && vote.voted_for_id === songImpostor?.id);
+            const guessedImpostorWord =
+              room.game_mode === 'word_impostor' &&
+              Boolean(vote?.is_impostor_guess && trueAuthor?.is_impostor);
+            const guessedImpostor = guessedImpostorMusic || guessedImpostorWord;
+            const guessedVictim = guessedImpostorMusic && vote?.impostor_target_id === victim?.id;
+            const perfectGuess = guessedImpostorMusic && guessedVictim;
             const pts = room.game_mode === 'word_impostor' ? null : (pointsThisSong[voter.id] ?? 0);
             const highlights =
               room.game_mode !== 'word_impostor' &&
@@ -210,7 +239,7 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
                   {room.game_mode !== 'word_impostor' && perfectGuess && (
                     <span className="badge badge-red">🎯 Idealny traf!</span>
                   )}
-                  {guessedImpostor && !guessedVictim && (
+                  {guessedImpostorMusic && !guessedVictim && (
                     <span className="badge badge-orange">🕵️ Wykrył impostora</span>
                   )}
                   {room.game_mode !== 'word_impostor' && !isCorrect && !guessedImpostor && vote && (
@@ -226,12 +255,12 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
         </div>
       </div>
 
-      {room.game_mode === 'word_impostor' && impostor && (
+      {room.game_mode === 'word_impostor' && impostors.length > 0 && (
         <div style={{ marginBottom: 20 }}>
           <WordImpostorDetectiveList
             players={players}
             votes={votes}
-            impostor={impostor}
+            impostors={impostors}
             throughSongIndex={idx}
           />
         </div>

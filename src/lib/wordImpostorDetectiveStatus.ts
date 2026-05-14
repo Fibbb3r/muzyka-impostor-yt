@@ -9,10 +9,10 @@ export type DetectiveImpostorStatus = 'correct' | 'wrong' | 'not_yet';
 export function detectiveImpostorStatusForPlayer(
   votes: Vote[],
   voterId: string,
-  impostorId: string | undefined,
+  impostorIds: Set<string>,
   throughSongIndex: number | null,
 ): DetectiveImpostorStatus {
-  if (!impostorId || voterId === impostorId) return 'not_yet';
+  if (impostorIds.size === 0 || impostorIds.has(voterId)) return 'not_yet';
 
   const scoped =
     throughSongIndex === null
@@ -21,18 +21,17 @@ export function detectiveImpostorStatusForPlayer(
 
   const guessVote = scoped.find(v => v.voter_id === voterId && v.is_impostor_guess);
   if (!guessVote) return 'not_yet';
-  if (guessVote.voted_for_id === impostorId) return 'correct';
+  if (impostorIds.has(guessVote.voted_for_id)) return 'correct';
   return 'wrong';
 }
 
 export function groupPlayersByDetectiveImpostorStatus(
   players: Player[],
   votes: Vote[],
-  impostor: Player | undefined,
+  impostorIds: Set<string>,
   throughSongIndex: number | null,
 ): { correct: Player[]; wrong: Player[]; notYet: Player[] } {
-  const impostorId = impostor?.id;
-  const detectives = players.filter(p => p.id !== impostorId);
+  const detectives = players.filter(p => !impostorIds.has(p.id));
   const correct: Player[] = [];
   const wrong: Player[] = [];
   const notYet: Player[] = [];
@@ -40,7 +39,7 @@ export function groupPlayersByDetectiveImpostorStatus(
   const byName = (a: Player, b: Player) => a.name.localeCompare(b.name, 'pl', { sensitivity: 'base' });
 
   for (const p of detectives) {
-    const s = detectiveImpostorStatusForPlayer(votes, p.id, impostorId, throughSongIndex);
+    const s = detectiveImpostorStatusForPlayer(votes, p.id, impostorIds, throughSongIndex);
     if (s === 'correct') correct.push(p);
     else if (s === 'wrong') wrong.push(p);
     else notYet.push(p);

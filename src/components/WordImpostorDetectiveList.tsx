@@ -6,7 +6,7 @@ import { groupPlayersByDetectiveImpostorStatus } from '../lib/wordImpostorDetect
 interface Props {
   players: Player[];
   votes: Vote[];
-  impostor: Player | undefined;
+  impostors: Player[];
   /** null = pełna runda; liczba = nutki 1..n włącznie */
   throughSongIndex: number | null;
   subtitle?: string;
@@ -22,15 +22,16 @@ function nameList(list: Player[]) {
 export default function WordImpostorDetectiveList({
   players,
   votes,
-  impostor,
+  impostors,
   throughSongIndex,
   subtitle,
   sticky,
 }: Props) {
+  const impostorIds = new Set(impostors.map(p => p.id));
   const { correct, wrong, notYet } = groupPlayersByDetectiveImpostorStatus(
     players,
     votes,
-    impostor,
+    impostorIds,
     throughSongIndex,
   );
 
@@ -103,9 +104,18 @@ export default function WordImpostorDetectiveList({
           </div>
         </div>
 
-        {impostor && (
+        {impostors.length > 0 && (
           <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 12, marginBottom: 0 }}>
-            Impostor: <strong style={{ color: 'var(--text)' }}>{impostor.name}</strong>
+            {impostors.length === 1 ? (
+              <>
+                Impostor: <strong style={{ color: 'var(--text)' }}>{impostors[0].name}</strong>
+              </>
+            ) : (
+              <>
+                Impostorzy:{' '}
+                <strong style={{ color: 'var(--text)' }}>{nameList(impostors)}</strong>
+              </>
+            )}
           </p>
         )}
       </div>

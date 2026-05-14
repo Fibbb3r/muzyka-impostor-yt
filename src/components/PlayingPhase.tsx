@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { ChevronRight, Music, Trophy } from 'lucide-react';
 import { motion } from 'framer-motion';
 import YTPlayer from './YTPlayer';
+import { extractVideoId, useYoutubeTitles } from '../lib/youtube';
 import type { Room, Player, Song, Vote, VoteState, SkipVote } from '../types/game';
 
 interface Props {
@@ -16,14 +17,6 @@ interface Props {
   myVotes: Record<number, VoteState>;
   onVoteChange: (songIdx: number, field: keyof VoteState, value: string | boolean) => void;
   onVoteSkip: (songIdx: number) => void;
-}
-
-function extractVideoId(url: string): string | null {
-  try {
-    const u = new URL(url);
-    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1).split('?')[0];
-    return u.searchParams.get('v');
-  } catch { return null; }
 }
 
 function formatTime(s: number) {
@@ -57,24 +50,15 @@ export default function PlayingPhase({
    */
   const playbackReadyForTimerRef = useRef(false);
 
-  // Titles revealed as songs play: { songIdx (1-based) -> title }
-  const [revealedTitles, setRevealedTitles] = useState<Record<number, string>>({});
-
-  // Fetch title via YouTube oEmbed (no API key needed) when song changes
-  useEffect(() => {
-    if (!currentSong) return;
-    const vid = extractVideoId(currentSong.youtube_url);
-    if (!vid) return;
-    const oEmbedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${vid}&format=json`;
-    fetch(oEmbedUrl)
-      .then(r => r.json())
-      .then(data => {
-        if (data?.title) {
-          setRevealedTitles(prev => ({ ...prev, [currentSongIdx]: data.title }));
-        }
-      })
-      .catch(() => {}); // silently ignore errors
-  }, [currentSongIdx, currentSong?.youtube_url]);
+  // Titles keyed by youtube_url, fetched lazily for all songs via shared hook
+  const allUrls = songs.map(s => s.youtube_url);
+  const urlTitles = useYoutubeTitles(allUrls);
+  // For backward-compat: revealedTitles[songIdx] -> title
+  const revealedTitles: Record<number, string> = {};
+  for (let i = 0; i < songs.length; i++) {
+    const t = urlTitles[songs[i].youtube_url];
+    if (t) revealedTitles[i + 1] = t;
+  }
 
   const startTimer = useCallback(() => {
     setElapsed(0);
@@ -180,6 +164,7 @@ export default function PlayingPhase({
   useEffect(() => {
     if (songs.length === 0 || room.status !== 'playing') return;
     if (advancedFromSongRef.current === currentSongIdx) return;
+    if (isLastSong) return; // na ostatniej nutce tylko admin klika "Pokaż wyniki"
 
     const skipWins = votesForCurrentSong >= skipThreshold;
     const earlySkip = skipWins && elapsed < DURATION;
@@ -280,24 +265,25 @@ export default function PlayingPhase({
             </div>
           </div>
 
-          {/* Admin controls */}
-          <div className="card" style={{ padding: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontWeight: 700, fontSize: 14 }}>Vote skip</span>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  {votesForCurrentSong}/{skipThreshold} głosów
-                </span>
+          {!isLastSong && (
+            <div className="card" style={{ padding: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span style={{ fontWeight: 700, fontSize: 14 }}>Vote skip</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {votesForCurrentSong}/{skipThreshold} głosów
+                  </span>
+                </div>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => onVoteSkip(currentSongIdx)}
+                  disabled={songs.length === 0 || hasVotedSkip}
+                >
+                  {hasVotedSkip ? 'Głos oddany' : 'Pomiń nutkę'}
+                </button>
               </div>
-              <button
-                className="btn btn-ghost"
-                onClick={() => onVoteSkip(currentSongIdx)}
-                disabled={songs.length === 0 || hasVotedSkip}
-              >
-                {hasVotedSkip ? 'Głos oddany' : 'Pomiń nutkę'}
-              </button>
             </div>
-          </div>
+          )}
 
           {isAdmin && (
             <button
@@ -311,6 +297,19 @@ export default function PlayingPhase({
                 ? 'Pokaż wyniki'
                 : `Kolejna nutka (${currentSongIdx + 1}/${songs.length})`}
             </button>
+          )}
+          {!isAdmin && isLastSong && elapsed >= DURATION && (
+            <div style={{
+              textAlign: 'center',
+              padding: '12px 16px',
+              background: 'var(--bg3)',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-muted)',
+              fontSize: 13,
+            }}>
+              ⏳ Czekaj — admin pokaże wyniki…
+            </div>
           )}
         </div>
 

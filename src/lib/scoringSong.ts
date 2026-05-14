@@ -26,35 +26,64 @@ function detectiveNormal(vote: Vote | undefined, trueAuthorId: string): number {
   return 0;
 }
 
-function detectiveImpostor(
-  voter: Player,
-  impostor: Player | undefined,
+/** Punkty detektywa (nie-impostora) w trybie muzycznym `impostor`. */
+function impostorModeNonImpostorPoints(
   vote: Vote | undefined,
-  trueAuthorId: string,
-  isImpostorSong: boolean,
+  songImpostor: Player | undefined,
   victimId: string | null,
+  trueAuthorId: string,
 ): number {
-  if (!impostor) return 0;
-
-  // Impostor nie może „zgadywać impostora” (UI), ale za trafnego autora nutki dostaje +3 jak reszta.
-  if (voter.id === impostor.id) {
-    if (vote?.voted_for_id === trueAuthorId) return 3;
-    return 0;
+  if (!songImpostor) {
+    return vote?.voted_for_id === trueAuthorId ? 3 : 0;
   }
 
-  const guessedImpostor = Boolean(vote?.is_impostor_guess && vote.voted_for_id === impostor.id);
-  const guessedVictim =
-    guessedImpostor && victimId !== null && vote?.impostor_target_id === victimId;
+  const fullDetective =
+    Boolean(vote?.is_impostor_guess) &&
+    vote?.voted_for_id === songImpostor.id &&
+    victimId !== null &&
+    vote.impostor_target_id === victimId;
 
-  if (isImpostorSong && guessedVictim) return 6;
-  if (isImpostorSong && guessedImpostor && !guessedVictim) return 4;
-  if (vote?.voted_for_id === trueAuthorId) return 3;
+  if (fullDetective) return 8;
+  if (vote?.voted_for_id === songImpostor.id) return 5;
   return 0;
+}
+
+/** Punkty impostora, który NIE jest autorem tej nutki (+3 / 0 jak przy zwykłej nutce). */
+function impostorModeOtherImpostorPoints(vote: Vote | undefined, trueAuthorId: string): number {
+  return vote?.voted_for_id === trueAuthorId ? 3 : 0;
+}
+
+/**
+ * Punkty autora-nutki (impostora) za własną nutkę: +2 / −2 wg wskazań na autora,
+ * +3 za każdego, kto wskazał wyłącznie „ofiarę” (podszywkę) — bez dodatkowego +2 za „nie trafili w impostora”.
+ */
+function impostorOwnSongAuthorPoints(
+  songImpostor: Player,
+  victimId: string | null,
+  players: Player[],
+  voteByVoter: Map<string, Vote | undefined>,
+): number {
+  let pts = 0;
+  for (const p of players) {
+    if (p.id === songImpostor.id) continue;
+    const v = voteByVoter.get(p.id);
+    const vf = v?.voted_for_id;
+    if (victimId && vf === victimId) {
+      pts += 3;
+    } else if (vf === songImpostor.id) {
+      pts -= 2;
+    } else {
+      pts += 2;
+    }
+  }
+  return pts;
 }
 
 /**
  * Punkty dla każdego gracza za jedną nutkę (`songIndex`).
- * Tryb `word_impostor` — na razie brak wdrożonej punktacji (wszystkie 0).
+ * Tryb `normal` — +3 za autora; autor +1 za każdego, kto go nie wskazał.
+ * Tryb `impostor` — osobna tabela (detektywi / impostorzy / nutka impostora), patrz funkcje pomocnicze.
+ * Tryb `word_impostor` — brak punktacji nutek (wszystkie 0).
  */
 export function scoreSongPoints(opts: {
   gameMode: GameMode;
@@ -73,10 +102,12 @@ export function scoreSongPoints(opts: {
   const voteByVoter = new Map<string, Vote | undefined>();
   for (const v of songVotes) voteByVoter.set(v.voter_id, v);
 
-  const impostor = players.find(p => p.is_impostor);
-  const isImpostorSong = Boolean(impostor && impostor.id === trueAuthorId);
+  const trueAuthor = players.find(p => p.id === trueAuthorId);
+  const songImpostor =
+    trueAuthor?.is_impostor ? trueAuthor : undefined;
+  const isImpostorSong = Boolean(songImpostor);
   const victimId =
-    isImpostorSong && impostor?.impersonates_id ? impostor.impersonates_id : null;
+    isImpostorSong && songImpostor?.impersonates_id ? songImpostor.impersonates_id : null;
 
   if (gameMode === 'normal') {
     for (const p of players) {
@@ -89,19 +120,25 @@ export function scoreSongPoints(opts: {
 
   if (gameMode === 'impostor') {
     for (const p of players) {
-      out[p.id] += detectiveImpostor(
-        p,
-        impostor,
-        voteByVoter.get(p.id),
-        trueAuthorId,
-        isImpostorSong,
-        victimId,
-      );
+      if (p.is_impostor && songImpostor && p.id === songImpostor.id) continue;
+      if (p.is_impostor) {
+        out[p.id] += impostorModeOtherImpostorPoints(voteByVoter.get(p.id), trueAuthorId);
+      } else {
+        out[p.id] += impostorModeNonImpostorPoints(
+          voteByVoter.get(p.id),
+          songImpostor,
+          victimId,
+          trueAuthorId,
+        );
+      }
     }
-    const hideBonus = countDidNotPickAsAuthor(players, trueAuthorId, voteByVoter);
-    out[trueAuthorId] = (out[trueAuthorId] ?? 0) + hideBonus * 1;
-    if (isImpostorSong && impostor) {
-      out[impostor.id] = (out[impostor.id] ?? 0) + hideBonus * 2;
+    if (songImpostor) {
+      out[songImpostor.id] += impostorOwnSongAuthorPoints(
+        songImpostor,
+        victimId,
+        players,
+        voteByVoter,
+      );
     }
   }
 

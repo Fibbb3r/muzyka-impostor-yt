@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import type { Room, Player, Song, Vote } from '../types/game';
 import WordImpostorDetectiveList from './WordImpostorDetectiveList';
 import words from '../data/words.json';
+import { allImpostorsSubmittedWord, wordGuessesMap } from '../lib/wordImpostorGuesses';
 
 interface Props {
   room: Room;
@@ -26,15 +27,25 @@ export default function WordImpostorFinalePhase({
   const [busy, setBusy] = useState(false);
   const step = room.word_finale_step ?? 0;
   const n = songs.length;
-  const impostor = players.find(p => p.is_impostor);
+  const impostors = players.filter(p => p.is_impostor);
+  const impostorIds = new Set(impostors.map(p => p.id));
   const isImpostorMe = currentPlayer.is_impostor;
   const finalStep = n + 1;
-  const guessSet = Boolean(room.impostor_word_guess?.length);
+  const guessSet = allImpostorsSubmittedWord(room, players);
+  const myWordGuess = wordGuessesMap(room, players)[currentPlayer.id];
 
   async function setGuess(word: string) {
     if (!isImpostorMe || busy) return;
     setBusy(true);
-    await supabase.from('rooms').update({ impostor_word_guess: word }).eq('id', room.id);
+    const prev = (room.impostor_word_guesses as Record<string, string> | null | undefined) ?? {};
+    const merged = { ...prev, [currentPlayer.id]: word };
+    await supabase
+      .from('rooms')
+      .update({
+        impostor_word_guesses: merged,
+        impostor_word_guess: impostors.length === 1 ? word : null,
+      })
+      .eq('id', room.id);
     setBusy(false);
   }
 
@@ -56,6 +67,7 @@ export default function WordImpostorFinalePhase({
         status: 'lobby',
         current_song_index: 0,
         impostor_word_guess: null,
+        impostor_word_guesses: {},
         word_finale_step: 0,
       })
       .eq('id', room.id);
@@ -81,7 +93,9 @@ export default function WordImpostorFinalePhase({
           <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
             {isImpostorMe
               ? 'Wybierz słowo, które twoim zdaniem było tajemnicą dla reszty pokoju.'
-              : 'Impostor wybiera słowo z listy…'}
+              : impostors.length > 1
+                ? 'Impostorzy wybierają słowo z listy…'
+                : 'Impostor wybiera słowo z listy…'}
           </p>
         </div>
 
@@ -96,7 +110,7 @@ export default function WordImpostorFinalePhase({
               }}
             >
               {words.map(w => {
-                const selected = room.impostor_word_guess === w;
+                const selected = myWordGuess === w;
                 return (
                   <button
                     key={w}
@@ -120,7 +134,7 @@ export default function WordImpostorFinalePhase({
             </div>
             {guessSet && (
               <p style={{ marginTop: 12, fontSize: 13, textAlign: 'center', color: 'var(--accent2)' }}>
-                Zapisano: <strong>{room.impostor_word_guess}</strong>
+                Zapisano: <strong>{myWordGuess}</strong>
               </p>
             )}
           </div>
@@ -128,9 +142,17 @@ export default function WordImpostorFinalePhase({
 
         {!isImpostorMe && (
           <div className="card" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 28 }}>
-            {impostor ? (
+            {impostors.length > 0 ? (
               <p style={{ fontSize: 15 }}>
-                <strong style={{ color: 'var(--text)' }}>{impostor.name}</strong> wybiera jedno słowo z puli.
+                {impostors.length === 1 ? (
+                  <>
+                    <strong style={{ color: 'var(--text)' }}>{impostors[0].name}</strong> wybiera jedno słowo z puli.
+                  </>
+                ) : (
+                  <>
+                    <strong style={{ color: 'var(--text)' }}>{impostors.map(i => i.name).join(', ')}</strong> — każdy wybiera jedno słowo z puli.
+                  </>
+                )}
               </p>
             ) : (
               <p>Brak impostora w danych pokoju.</p>
@@ -142,7 +164,7 @@ export default function WordImpostorFinalePhase({
           <>
             {!guessSet && (
               <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-                Przycisk odblokuje się, gdy impostor wybierze słowo.
+                Przycisk odblokuje się, gdy {impostors.length > 1 ? 'wszyscy impostorzy' : 'impostor'} wybiorą słowo.
               </p>
             )}
             <button
@@ -167,7 +189,7 @@ export default function WordImpostorFinalePhase({
     const song = songs[k - 1];
     const trueAuthorId = song?.player_id;
     const trueAuthor = players.find(p => p.id === trueAuthorId);
-    const isImpostorSong = impostor?.id === trueAuthorId;
+    const isImpostorSong = Boolean(trueAuthor?.is_impostor);
     const songVotes = votes.filter(v => v.song_index === k);
 
     return (
@@ -229,12 +251,12 @@ export default function WordImpostorFinalePhase({
           <p className="section-title" style={{ marginBottom: 12 }}>Głosy przy tej nutce (impostor)</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {players
-              .filter(p => p.id !== impostor?.id)
+              .filter(p => !impostorIds.has(p.id))
               .map(voter => {
                 const vote = songVotes.find(v => v.voter_id === voter.id);
                 const votedFor = players.find(p => p.id === vote?.voted_for_id);
                 const pointedAsImpostor = Boolean(vote?.is_impostor_guess);
-                const hitImpostor = pointedAsImpostor && vote?.voted_for_id === impostor?.id;
+                const hitImpostor = pointedAsImpostor && Boolean(vote?.voted_for_id && impostorIds.has(vote.voted_for_id));
 
                 let line: string;
                 if (!vote) line = 'Nie zagłosował';
@@ -263,7 +285,7 @@ export default function WordImpostorFinalePhase({
         <WordImpostorDetectiveList
           players={players}
           votes={votes}
-          impostor={impostor}
+          impostors={impostors}
           throughSongIndex={k}
           sticky
         />
@@ -286,15 +308,16 @@ export default function WordImpostorFinalePhase({
 
   // ── Krok N+1: strzał słowa + werdykt ─────────────────────────
   if (step === finalStep) {
-    const guess = room.impostor_word_guess ?? '';
+    const guesses = wordGuessesMap(room, players);
     const truth = room.current_word ?? '';
-    const won = guess.length > 0 && truth.length > 0 && guess === truth;
+    const hits = impostors.map(i => guesses[i.id]).filter((g): g is string => Boolean(g?.length));
+    const won = hits.some(g => g.length > 0 && truth.length > 0 && g === truth);
 
     return (
       <div style={{ width: '100%', maxWidth: 680, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: 22 }}>
           <h2 style={{ fontSize: 22, fontWeight: 900 }}>Strzał impostora</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 6 }}>Oto wytypowane słowo</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 6 }}>Oto wytypowane słowa</p>
         </div>
 
         <motion.div
@@ -303,8 +326,30 @@ export default function WordImpostorFinalePhase({
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
         >
-          <p className="section-title" style={{ marginBottom: 10 }}>Impostor wytypował</p>
-          <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--accent)' }}>{guess || '—'}</div>
+          <p className="section-title" style={{ marginBottom: 10 }}>Impostorzy wytypowali</p>
+          {impostors.length === 0 ? (
+            <div style={{ fontSize: 22, fontWeight: 800 }}>—</div>
+          ) : (
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 16px', textAlign: 'left' }}>
+              {impostors.map(i => (
+                <li
+                  key={i.id}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    padding: '10px 0',
+                    borderBottom: '1px solid var(--border)',
+                    fontSize: 15,
+                    fontWeight: 700,
+                  }}
+                >
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{i.name}</span>
+                  <span style={{ color: 'var(--accent)' }}>{guesses[i.id] || '—'}</span>
+                </li>
+              ))}
+            </ul>
+          )}
           <p style={{ marginTop: 20, fontSize: 13, color: 'var(--text-muted)' }}>Tajne słowo rundy było</p>
           <div style={{ fontSize: 22, fontWeight: 800, marginTop: 6 }}>{truth || '—'}</div>
           {won ? (
@@ -316,7 +361,7 @@ export default function WordImpostorFinalePhase({
           ) : (
             <div style={{ marginTop: 20 }}>
               <span className="badge badge-gray" style={{ fontSize: 14, padding: '8px 16px' }}>
-                Impostor nie trafił słowa
+                Żaden impostor nie trafił słowa
               </span>
             </div>
           )}
@@ -325,7 +370,7 @@ export default function WordImpostorFinalePhase({
         <WordImpostorDetectiveList
           players={players}
           votes={votes}
-          impostor={impostor}
+          impostors={impostors}
           throughSongIndex={null}
         />
 
