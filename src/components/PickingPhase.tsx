@@ -145,6 +145,23 @@ export default function PickingPhase({ room, players, currentPlayer, isAdmin, so
             <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
               Ty i pozostali szponty macie wspólne inne słowo niż lojalistów — żeby nie było widać jednej „obcej” nutki wśród reszty.
             </p>
+            {room.current_word ? (
+              <div style={{
+                marginTop: 10,
+                padding: '8px',
+                background: 'var(--bg3)',
+                borderRadius: 8,
+                border: '1px solid rgba(124,108,252,0.35)',
+              }}>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>Słowo lojalistów (wiedza szponta):</p>
+                <p style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent)' }}>{room.current_word}</p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Takie słowo widzą gracze bez roli szponta — żebyś wiedział, w jakim klimacie gra reszta stołu.
+                </p>
+              </div>
+            ) : (
+              <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 8 }}>Brak słowa lojalistów w pokoju.</p>
+            )}
             {room.szpont_word ? (
               <div style={{
                 marginTop: 10,
