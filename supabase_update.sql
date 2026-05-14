@@ -1,6 +1,12 @@
 -- Dodanie kolumny na wylosowane słowo
 ALTER TABLE rooms ADD COLUMN IF NOT EXISTS current_word text;
 
+-- Słowo wspólne dla roli Szpont (word_impostor)
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS szpont_word text;
+
+-- Rola Szpont
+ALTER TABLE players ADD COLUMN IF NOT EXISTS is_szpont boolean NOT NULL DEFAULT false;
+
 -- Kolumna na strzał impostora (co wytypował za tajne słowo)
 ALTER TABLE rooms ADD COLUMN IF NOT EXISTS impostor_word_guess text;
 

@@ -36,15 +36,18 @@ export default function PickingPhase({ room, players, currentPlayer, isAdmin, so
   const [urlError, setUrlError] = useState('');
   const [showNames, setShowNames] = useState(false);
 
+  const szpontMe =
+    room.game_mode === 'word_impostor' && currentPlayer.is_szpont && !currentPlayer.is_impostor;
+
   const myRole = currentPlayer.is_impostor
     ? (() => {
         if (room.game_mode === 'word_impostor') {
-          return { impostor: true, victimName: null, wordImpostor: true };
+          return { impostor: true, victimName: null, wordImpostor: true, szpont: false };
         }
         const victim = players.find(p => p.id === currentPlayer.impersonates_id);
-        return { impostor: true, victimName: victim?.name ?? '???', wordImpostor: false };
+        return { impostor: true, victimName: victim?.name ?? '???', wordImpostor: false, szpont: false };
       })()
-    : { impostor: false, victimName: '', wordImpostor: false };
+    : { impostor: false, victimName: '', wordImpostor: false, szpont: szpontMe };
 
   const myDisplayName = (currentPlayer.is_impostor && room.game_mode !== 'word_impostor')
     ? (players.find(p => p.id === currentPlayer.impersonates_id)?.name ?? currentPlayer.name)
@@ -108,8 +111,16 @@ export default function PickingPhase({ room, players, currentPlayer, isAdmin, so
           borderRadius: 14,
           background: myRole.impostor
             ? 'linear-gradient(135deg, rgba(244,63,94,0.15), rgba(251,146,60,0.1))'
-            : 'rgba(124,108,252,0.1)',
-          border: `1px solid ${myRole.impostor ? 'rgba(244,63,94,0.35)' : 'rgba(124,108,252,0.3)'}`,
+            : myRole.szpont
+              ? 'linear-gradient(135deg, rgba(245,158,11,0.12), rgba(251,191,36,0.08))'
+              : 'rgba(124,108,252,0.1)',
+          border: `1px solid ${
+            myRole.impostor
+              ? 'rgba(244,63,94,0.35)'
+              : myRole.szpont
+                ? 'rgba(245,158,11,0.4)'
+                : 'rgba(124,108,252,0.3)'
+          }`,
           textAlign: 'center',
         }}
       >
@@ -125,6 +136,31 @@ export default function PickingPhase({ room, players, currentPlayer, isAdmin, so
               <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
                 Podszyj się pod <strong style={{ color: 'var(--text)' }}>{myRole.victimName}</strong> — wybierz nutkę jako gdybyś był tą osobą
               </p>
+            )}
+          </>
+        ) : myRole.szpont ? (
+          <>
+            <div style={{ fontSize: 22, marginBottom: 6 }}>🎭</div>
+            <p style={{ fontWeight: 800, fontSize: 16, color: '#f59e0b' }}>Jesteś Szpontem!</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
+              Ty i pozostali szponty macie wspólne inne słowo niż lojalistów — żeby nie było widać jednej „obcej” nutki wśród reszty.
+            </p>
+            {room.szpont_word ? (
+              <div style={{
+                marginTop: 10,
+                padding: '8px',
+                background: 'var(--bg3)',
+                borderRadius: 8,
+                border: '1px solid rgba(245,158,11,0.35)',
+              }}>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>Wasze słowo (Szpont):</p>
+                <p style={{ fontSize: 18, fontWeight: 800, color: '#f59e0b' }}>{room.szpont_word}</p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Wybierz nutkę pasującą do tego słowa. Możesz też głosować na impostora w fazie gry.
+                </p>
+              </div>
+            ) : (
+              <p style={{ color: 'var(--danger)', fontSize: 12, marginTop: 8 }}>Brak słowa szpontów w danych pokoju.</p>
             )}
           </>
         ) : (

@@ -8,6 +8,8 @@ export interface Room {
   game_mode: GameMode;
   current_song_index: number;
   current_word?: string | null;
+  /** Wspólne słowo-dekoy dla roli Szpont (tryb word_impostor), inne niż `current_word`. */
+  szpont_word?: string | null;
   impostor_word_guess?: string | null;
   /** Strzały słowa w finale (player_id → słowo), gdy jest więcej niż jeden impostor. */
   impostor_word_guesses?: Record<string, string> | null;
@@ -20,6 +22,8 @@ export interface Player {
   name: string;
   is_admin: boolean;
   is_impostor: boolean;
+  /** Rola „Szpont” — wspólne inne słowo niż lojalistów; tylko tryb word_impostor. */
+  is_szpont?: boolean;
   impersonates_id: string | null;
 }
 

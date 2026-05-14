@@ -18,10 +18,21 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
   const [mode, setMode] = useState<GameMode>('normal');
   const maxImpostors = players.length >= 2 ? players.length - 1 : 1;
   const [impostorCount, setImpostorCount] = useState(1);
+  const [szpontCount, setSzpontCount] = useState(0);
+
+  const kWordImpostor =
+    players.length >= 2 ? Math.min(Math.max(1, impostorCount), players.length - 1) : 1;
+  const maxSzponts =
+    mode === 'word_impostor' && players.length >= 2 ? Math.max(0, players.length - kWordImpostor - 1) : 0;
 
   useEffect(() => {
     setImpostorCount(c => Math.min(Math.max(1, c), maxImpostors));
   }, [maxImpostors]);
+
+  useEffect(() => {
+    if (mode !== 'word_impostor') return;
+    setSzpontCount(c => Math.min(Math.max(0, c), maxSzponts));
+  }, [maxSzponts, mode]);
 
   async function startGame() {
     if (players.length < 2) return;
@@ -32,8 +43,14 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
     await supabase.from('songs').delete().eq('room_id', room.id);
     await supabase.from('song_skip_votes').delete().eq('room_id', room.id);
 
-    // Resetuj graczy (impostor)
-    await supabase.from('players').update({ is_impostor: false, impersonates_id: null }).eq('room_id', room.id);
+    // Resetuj graczy (impostor + szpont)
+    await supabase
+      .from('players')
+      .update({ is_impostor: false, impersonates_id: null, is_szpont: false })
+      .eq('room_id', room.id);
+
+    let currentWord: string | null = null;
+    let szpontWord: string | null = null;
 
     if (mode === 'impostor' && players.length >= 2) {
       const k = Math.min(Math.max(1, impostorCount), players.length - 1);
@@ -52,22 +69,41 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
       const k = Math.min(Math.max(1, impostorCount), players.length - 1);
       const shuffled = [...players].sort(() => Math.random() - 0.5);
       const impostors = shuffled.slice(0, k);
+      const impostorIds = new Set(impostors.map(p => p.id));
 
       for (const imp of impostors) {
         await supabase.from('players')
           .update({ is_impostor: true, impersonates_id: null })
           .eq('id', imp.id);
       }
+
+      const pool = players.filter(p => !impostorIds.has(p.id));
+      const maxS = Math.max(0, pool.length - 1);
+      const s = Math.min(szpontCount, maxS);
+      const poolShuffled = [...pool].sort(() => Math.random() - 0.5);
+      for (const sp of poolShuffled.slice(0, s)) {
+        await supabase.from('players').update({ is_szpont: true }).eq('id', sp.id);
+      }
+
+      currentWord = words[Math.floor(Math.random() * words.length)] ?? null;
+      if (s > 0 && currentWord) {
+        const alt = words.filter(w => w !== currentWord);
+        const pickFrom = alt.length > 0 ? alt : words;
+        szpontWord = pickFrom[Math.floor(Math.random() * pickFrom.length)] ?? null;
+      }
     }
 
-    const currentWord = mode === 'word_impostor' ? words[Math.floor(Math.random() * words.length)] : null;
+    if (mode === 'word_impostor' && !currentWord) {
+      currentWord = words[Math.floor(Math.random() * words.length)] ?? null;
+    }
 
     await supabase.from('rooms')
       .update({
         status: 'picking',
         game_mode: mode,
         current_song_index: 0,
-        current_word: currentWord,
+        current_word: mode === 'word_impostor' ? currentWord : null,
+        szpont_word: mode === 'word_impostor' ? szpontWord : null,
         impostor_word_guess: null,
         impostor_word_guesses: {},
         word_finale_step: 0,
@@ -207,6 +243,34 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
               </div>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: -12, marginBottom: 20 }}>
                 Max {maxImpostors} — zostaje co najmniej jeden nie-impostor.
+              </p>
+            </>
+          )}
+
+          {mode === 'word_impostor' && players.length >= 2 && maxSzponts > 0 && (
+            <>
+              <p className="label" style={{ marginBottom: 10 }}>Liczba szpontów</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                <input
+                  type="range"
+                  min={0}
+                  max={maxSzponts}
+                  value={Math.min(szpontCount, maxSzponts)}
+                  onChange={e => setSzpontCount(parseInt(e.target.value, 10))}
+                  style={{ flex: 1, accentColor: '#f59e0b' }}
+                />
+                <span style={{
+                  minWidth: 36,
+                  textAlign: 'center',
+                  fontWeight: 800,
+                  fontSize: 16,
+                  color: '#f59e0b',
+                }}>
+                  {Math.min(szpontCount, maxSzponts)}
+                </span>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: -12, marginBottom: 20 }}>
+                Szponty mają wspólne inne słowo niż lojalistów — max {maxSzponts}, żeby został co najmniej jeden gracz z prawdziwym słowem.
               </p>
             </>
           )}

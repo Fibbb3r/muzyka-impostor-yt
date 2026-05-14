@@ -30,6 +30,9 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
   const impostors = players.filter(p => p.is_impostor);
   const songImpostor = trueAuthor?.is_impostor ? trueAuthor : undefined;
   const isImpostorSong = Boolean(songImpostor);
+  const isSzpontSong =
+    room.game_mode === 'word_impostor' &&
+    Boolean(trueAuthor?.is_szpont && !trueAuthor?.is_impostor);
   const victim =
     isImpostorSong && room.game_mode === 'impostor' && songImpostor
       ? players.find(p => p.id === songImpostor.impersonates_id) ?? null
@@ -83,7 +86,12 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
           .eq('id', room.id);
       } else {
         await supabase.from('song_skip_votes').delete().eq('room_id', room.id);
-        await supabase.from('rooms').update({ status: 'lobby', current_song_index: 0 }).eq('id', room.id);
+        await supabase.from('rooms').update({
+          status: 'lobby',
+          current_song_index: 0,
+          current_word: null,
+          szpont_word: null,
+        }).eq('id', room.id);
       }
     } else {
       await supabase.from('rooms').update({ current_song_index: next }).eq('id', room.id);
@@ -121,7 +129,9 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
                 width: 64, height: 64, borderRadius: '50%',
                 background: isImpostorSong
                   ? 'linear-gradient(135deg, #f43f5e, #fb923c)'
-                  : 'linear-gradient(135deg, var(--accent), var(--accent2))',
+                  : isSzpontSong
+                    ? 'linear-gradient(135deg, #f59e0b, #fbbf24)'
+                    : 'linear-gradient(135deg, var(--accent), var(--accent2))',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 26, fontWeight: 900, color: '#fff', margin: '0 auto 12px',
                 boxShadow: '0 8px 30px rgba(124,108,252,0.4)',
@@ -163,6 +173,26 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
                 >
                   <span className="badge badge-red" style={{ fontSize: 12, padding: '6px 14px' }}>
                     🕵️ SŁOWO IMPOSTOR — nie znał tajnego słowa
+                  </span>
+                </motion.div>
+              )}
+              {isSzpontSong && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  style={{ marginTop: 12 }}
+                >
+                  <span
+                    className="badge"
+                    style={{
+                      fontSize: 12,
+                      padding: '6px 14px',
+                      background: 'rgba(245,158,11,0.12)',
+                      color: '#d97706',
+                      border: '1px solid rgba(245,158,11,0.4)',
+                    }}
+                  >
+                    🎭 SZPONT — dobierał nutkę do innego słowa niż lojalistowie
                   </span>
                 </motion.div>
               )}

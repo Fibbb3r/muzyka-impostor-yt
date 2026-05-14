@@ -44,7 +44,7 @@ export default function Home() {
       // Wstaw gracza
       const { data: player, error: playerErr } = await supabase
         .from('players')
-        .insert({ room_id: room.id, name: trimmedNick, is_admin: isAdmin, is_impostor: false })
+        .insert({ room_id: room.id, name: trimmedNick, is_admin: isAdmin, is_impostor: false, is_szpont: false })
         .select()
         .single();
       if (playerErr) throw playerErr;

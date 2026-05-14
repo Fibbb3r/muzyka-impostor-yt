@@ -66,9 +66,11 @@ export default function WordImpostorFinalePhase({
       .update({
         status: 'lobby',
         current_song_index: 0,
+        current_word: null,
         impostor_word_guess: null,
         impostor_word_guesses: {},
         word_finale_step: 0,
+        szpont_word: null,
       })
       .eq('id', room.id);
     setBusy(false);
@@ -190,6 +192,7 @@ export default function WordImpostorFinalePhase({
     const trueAuthorId = song?.player_id;
     const trueAuthor = players.find(p => p.id === trueAuthorId);
     const isImpostorSong = Boolean(trueAuthor?.is_impostor);
+    const isSzpontSong = Boolean(trueAuthor?.is_szpont && !trueAuthor?.is_impostor);
     const songVotes = votes.filter(v => v.song_index === k);
 
     return (
@@ -218,7 +221,9 @@ export default function WordImpostorFinalePhase({
                   borderRadius: '50%',
                   background: isImpostorSong
                     ? 'linear-gradient(135deg, #f43f5e, #fb923c)'
-                    : 'linear-gradient(135deg, var(--accent), var(--accent2))',
+                    : isSzpontSong
+                      ? 'linear-gradient(135deg, #f59e0b, #fbbf24)'
+                      : 'linear-gradient(135deg, var(--accent), var(--accent2))',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -236,7 +241,23 @@ export default function WordImpostorFinalePhase({
                   🕵️ To był impostor
                 </span>
               )}
-              {!isImpostorSong && (
+              {isSzpontSong && (
+                <span
+                  className="badge"
+                  style={{
+                    fontSize: 11,
+                    padding: '6px 12px',
+                    marginTop: 10,
+                    display: 'inline-block',
+                    background: 'rgba(245,158,11,0.12)',
+                    color: '#d97706',
+                    border: '1px solid rgba(245,158,11,0.4)',
+                  }}
+                >
+                  🎭 Szpont
+                </span>
+              )}
+              {!isImpostorSong && !isSzpontSong && (
                 <span className="badge badge-green" style={{ fontSize: 11, padding: '6px 12px', marginTop: 10, display: 'inline-block' }}>
                   Nie impostor
                 </span>
