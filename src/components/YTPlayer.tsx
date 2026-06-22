@@ -1,17 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Volume2, Volume1, VolumeX } from 'lucide-react';
 
 interface Props {
   videoId: string;
   startSeconds: number;
   playing: boolean;
-  volume: number; // 0–100
+  volume: number;
+  onVolumeChange: (v: number) => void;
+  onMuteToggle: () => void;
 }
 
-export default function YTPlayer({ videoId, startSeconds, playing, volume }: Props) {
+export default function YTPlayer({
+  videoId, startSeconds, playing, volume, onVolumeChange, onMuteToggle,
+}: Props) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const needsSeekRef = useRef(true);
   const [loaded, setLoaded] = useState(false);
 
-  // Send command to YouTube player via postMessage
   function cmd(func: string, args: unknown[] = []) {
     iframeRef.current?.contentWindow?.postMessage(
       JSON.stringify({ event: 'command', func, args }),
@@ -19,24 +24,29 @@ export default function YTPlayer({ videoId, startSeconds, playing, volume }: Pro
     );
   }
 
-  // When iframe loads, set volume and play if needed
+  useLayoutEffect(() => {
+    needsSeekRef.current = true;
+  }, [videoId, startSeconds]);
+
   function handleLoad() {
     setLoaded(true);
-    // Short delay to let the player initialize before sending commands
     setTimeout(() => {
       cmd('setVolume', [volume]);
       if (playing) {
         cmd('seekTo', [startSeconds, true]);
+        needsSeekRef.current = false;
         cmd('playVideo');
       }
     }, 300);
   }
 
-  // Play / pause control
   useEffect(() => {
     if (!loaded) return;
     if (playing) {
-      cmd('seekTo', [startSeconds, true]);
+      if (needsSeekRef.current) {
+        cmd('seekTo', [startSeconds, true]);
+        needsSeekRef.current = false;
+      }
       cmd('playVideo');
     } else {
       cmd('pauseVideo');
@@ -44,12 +54,13 @@ export default function YTPlayer({ videoId, startSeconds, playing, volume }: Pro
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, loaded]);
 
-  // Volume control
   useEffect(() => {
     if (!loaded) return;
     cmd('setVolume', [volume]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [volume, loaded]);
+
+  const VolIcon = volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
 
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const src = [
@@ -64,33 +75,49 @@ export default function YTPlayer({ videoId, startSeconds, playing, volume }: Pro
     `&iv_load_policy=3`,
     `&playsinline=1`,
     `&cc_load_policy=0`,
+    `&fs=0`,
+    `&disablekb=1`,
   ].join('');
 
   return (
-    <div style={{
-      position: 'relative', width: '100%', paddingBottom: '56.25%',
-      borderRadius: 12, overflow: 'hidden', background: '#000',
-    }}>
+    <div className="yt-wrap">
       <iframe
         ref={iframeRef}
-        key={`${videoId}-${startSeconds}`}   // force remount on video change
+        key={`${videoId}-${startSeconds}`}
         src={src}
         onLoad={handleLoad}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
-        allow="autoplay; encrypted-media; picture-in-picture"
-        allowFullScreen
+        allow="autoplay; encrypted-media"
         title="YouTube player"
+        tabIndex={-1}
       />
       {!loaded && (
-        <div style={{
-          position: 'absolute', inset: 0, display: 'flex',
-          alignItems: 'center', justifyContent: 'center',
-          background: 'var(--bg3)', color: 'var(--text-muted)', fontSize: 13,
-          pointerEvents: 'none', zIndex: 1,
-        }}>
-          Ładowanie…
-        </div>
+        <div className="yt-wrap__loading">Ładowanie…</div>
       )}
+      <div className="yt-wrap__shield" aria-hidden="true" />
+      <div className="vol-hud">
+        <div className="vol-hud__panel">
+          <span className="vol-hud__value">{volume}</span>
+          <div className="vol-hud__slider-wrap">
+            <input
+              type="range"
+              className="vol-hud__range"
+              min={0}
+              max={100}
+              value={volume}
+              onChange={e => onVolumeChange(parseInt(e.target.value, 10))}
+              aria-label="Głośność"
+            />
+          </div>
+        </div>
+        <button
+          type="button"
+          className="yt-ctrl-btn vol-hud__btn"
+          onClick={onMuteToggle}
+          aria-label={volume === 0 ? 'Włącz dźwięk' : 'Wycisz'}
+        >
+          <VolIcon size={18} />
+        </button>
+      </div>
     </div>
   );
 }

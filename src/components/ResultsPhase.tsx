@@ -102,97 +102,52 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
   const isLastSong = idx >= songs.length;
 
   return (
-    <div style={{ width: '100%', maxWidth: 680, margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 6 }}>
-          <Trophy size={20} color="var(--accent2)" />
-          <h2 style={{ fontSize: 22, fontWeight: 900 }}>Wyniki — Nutka {idx}/{songs.length}</h2>
-        </div>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Kto co wybrał i jak głosowali gracze</p>
+    <div className="results-page">
+      <div className="results-page__tag">
+        <span className="ui-tag">[ WYNIKI {idx} / {songs.length} ]</span>
       </div>
 
-      {/* True author reveal */}
       <AnimatePresence mode="wait">
         <motion.div
           key={idx}
-          className="card"
-          style={{ textAlign: 'center', marginBottom: 20, padding: '28px 24px' }}
-          initial={{ opacity: 0, scale: 0.95 }}
+          className="card card-accent results-reveal"
+          initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.35 }}
         >
           <p className="section-title" style={{ marginBottom: 12 }}>Piosenkę dodał</p>
           {trueAuthor ? (
             <>
-              <div style={{
-                width: 64, height: 64, borderRadius: '50%',
-                background: isImpostorSong
-                  ? 'linear-gradient(135deg, #f43f5e, #fb923c)'
-                  : isSzpontSong
-                    ? 'linear-gradient(135deg, #f59e0b, #fbbf24)'
-                    : 'linear-gradient(135deg, var(--accent), var(--accent2))',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 26, fontWeight: 900, color: '#fff', margin: '0 auto 12px',
-                boxShadow: '0 8px 30px rgba(124,108,252,0.4)',
-              }}>
+              <div className={`results-reveal__avatar${
+                isImpostorSong ? ' results-reveal__avatar--impostor' : isSzpontSong ? ' results-reveal__avatar--szpont' : ''
+              }`}>
                 {trueAuthor.name[0].toUpperCase()}
               </div>
-              <div style={{ fontSize: 28, fontWeight: 900 }}>{trueAuthor.name}</div>
+              <div className="results-reveal__name">{trueAuthor.name}</div>
               {song && (
-                <div style={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: 'var(--accent)',
-                  marginTop: 10,
-                  lineHeight: 1.35,
-                  maxWidth: 420,
-                  marginLeft: 'auto',
-                  marginRight: 'auto',
-                }}>
-                  🎵 {urlTitles[song.youtube_url] ?? '…'}
+                <div className="results-reveal__song">
+                  {urlTitles[song.youtube_url] ?? '…'}
                 </div>
               )}
 
               {isImpostorSong && room.game_mode === 'impostor' && victim && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  style={{ marginTop: 12 }}
-                >
-                  <span className="badge badge-red" style={{ fontSize: 12, padding: '6px 14px' }}>
-                    🕵️ IMPOSTOR — podszywa się pod: {victim.name}
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: 12 }}>
+                  <span className="badge badge-red">
+                    Impostor — podszywa się pod: {victim.name}
                   </span>
                 </motion.div>
               )}
               {isImpostorSong && room.game_mode === 'word_impostor' && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  style={{ marginTop: 12 }}
-                >
-                  <span className="badge badge-red" style={{ fontSize: 12, padding: '6px 14px' }}>
-                    🕵️ SŁOWO IMPOSTOR — nie znał tajnego słowa
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: 12 }}>
+                  <span className="badge badge-red">
+                    Słowo impostor — nie znał tajnego słowa
                   </span>
                 </motion.div>
               )}
               {isSzpontSong && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  style={{ marginTop: 12 }}
-                >
-                  <span
-                    className="badge"
-                    style={{
-                      fontSize: 12,
-                      padding: '6px 14px',
-                      background: 'rgba(245,158,11,0.12)',
-                      color: '#d97706',
-                      border: '1px solid rgba(245,158,11,0.4)',
-                    }}
-                  >
-                    🎭 SZPONT — dobierał nutkę do innego słowa niż lojalistowie
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: 12 }}>
+                  <span className="badge badge-orange">
+                    Szpont — inne słowo niż lojalistowie
                   </span>
                 </motion.div>
               )}
@@ -203,10 +158,12 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
         </motion.div>
       </AnimatePresence>
 
-      {/* Votes list */}
-      <div className="card" style={{ marginBottom: 20 }}>
-        <p className="section-title" style={{ marginBottom: 14 }}>Jak głosowali gracze</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="card card-accent results-votes">
+        <div className="playing-card-header" style={{ marginBottom: 14 }}>
+          <User size={18} color="var(--accent)" />
+          <span className="playing-card-header__title">Jak głosowali gracze</span>
+        </div>
+        <div className="results-votes__list">
           {players.map(voter => {
             const vote = songVotes.find(v => v.voter_id === voter.id);
             const votedFor = players.find(p => p.id === vote?.voted_for_id);
@@ -229,54 +186,48 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
                 (pts !== null && pts > 0));
 
             return (
-              <div key={voter.id} style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '12px 14px', borderRadius: 12,
-                background: highlights ? 'rgba(34,211,160,0.07)' : 'var(--bg3)',
-                border: `1px solid ${highlights ? 'rgba(34,211,160,0.25)' : 'var(--border)'}`,
-              }}>
+              <div
+                key={voter.id}
+                className={`results-vote-row${highlights ? ' results-vote-row--highlight' : ''}`}
+              >
                 <div className="avatar" style={{ width: 34, height: 34, fontSize: 13 }}>
                   {voter.name[0].toUpperCase()}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13 }}>{voter.name}</div>
+                  <div className="results-vote-row__name">{voter.name}</div>
                   {vote ? (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    <div className="results-vote-row__meta">
                       {room.game_mode !== 'word_impostor' && (
                         <>Wskazał: <strong style={{ color: 'var(--text)' }}>{votedFor?.name ?? '?'}</strong></>
                       )}
                       {vote.is_impostor_guess && (
-                        <span style={{ color: '#fb7185', marginLeft: room.game_mode === 'word_impostor' ? 0 : 6 }}>
-                          {room.game_mode === 'word_impostor' ? 'Wskazał jako Impostora' : '· jako Impostor'}{room.game_mode === 'impostor' ? ` pod ${players.find(p => p.id === vote.impostor_target_id)?.name ?? '?'}` : ''}
+                        <span style={{ color: 'var(--danger)', marginLeft: room.game_mode === 'word_impostor' ? 0 : 6 }}>
+                          {room.game_mode === 'word_impostor' ? 'Wskazał jako impostora' : '· jako impostor'}{room.game_mode === 'impostor' ? ` pod ${players.find(p => p.id === vote.impostor_target_id)?.name ?? '?'}` : ''}
                         </span>
                       )}
                     </div>
                   ) : (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Nie zagłosował</div>
+                    <div className="results-vote-row__meta">Nie zagłosował</div>
                   )}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
-                  <span style={{
-                    fontSize: 12,
-                    fontWeight: 800,
-                    color: pts === null ? 'var(--text-muted)' : pts > 0 ? 'var(--accent2)' : 'var(--text-muted)',
-                  }}>
+                <div className="results-vote-row__badges">
+                  <span className={`results-vote-row__pts${pts !== null && pts > 0 ? ' results-vote-row__pts--pos' : ''}`}>
                     {pts === null ? '—' : formatPointsPts(pts)}
                   </span>
                   {room.game_mode !== 'word_impostor' && isCorrect && (!vote?.is_impostor_guess || !guessedImpostor) && (
-                    <span className="badge badge-green">✓ Trafił!</span>
+                    <span className="badge badge-green">Trafił</span>
                   )}
                   {room.game_mode !== 'word_impostor' && perfectGuess && (
-                    <span className="badge badge-red">🎯 Idealny traf!</span>
+                    <span className="badge badge-red">Idealny traf</span>
                   )}
                   {guessedImpostorMusic && !guessedVictim && (
-                    <span className="badge badge-orange">🕵️ Wykrył impostora</span>
+                    <span className="badge badge-orange">Wykrył impostora</span>
                   )}
                   {room.game_mode !== 'word_impostor' && !isCorrect && !guessedImpostor && vote && (
-                    <span className="badge badge-gray">✗ Pudło</span>
+                    <span className="badge badge-gray">Pudło</span>
                   )}
                   {room.game_mode === 'word_impostor' && vote?.is_impostor_guess && !guessedImpostor && (
-                    <span className="badge badge-gray">✗ Błędny strzał</span>
+                    <span className="badge badge-gray">Błędny strzał</span>
                   )}
                 </div>
               </div>
@@ -286,7 +237,7 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
       </div>
 
       {room.game_mode === 'word_impostor' && impostors.length > 0 && (
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom: 16 }}>
           <WordImpostorDetectiveList
             players={players}
             votes={votes}
@@ -296,114 +247,56 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
         </div>
       )}
 
-      {/* Podium — suma punktów od nutki 1 do bieżącej */}
       {showPodium && rankedByPoints.length > 0 && (
         <motion.div
           key={`podium-${idx}`}
-          className="card"
-          style={{ marginBottom: 20, overflow: 'hidden' }}
+          className="card card-accent podium-card"
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: 'easeOut', delay: 0.12 }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 6 }}>
-            <Trophy size={20} color="var(--warn)" />
-            <span style={{ fontWeight: 900, fontSize: 17 }}>Podium — suma nutek 1–{idx}</span>
+          <div className="podium-card__header">
+            <Trophy size={18} color="var(--accent)" />
+            <span className="podium-card__title">Podium — suma nutek 1–{idx}</span>
           </div>
-          <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, marginBottom: 18 }}>
+          <p className="podium-card__sub">
             Ranking zlicza wszystkie nutki pokazane do tego momentu
           </p>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'flex-end',
-              justifyContent: 'center',
-              gap: 10,
-              minHeight: 168,
-              marginBottom: rankedByPoints.length > 3 ? 16 : 0,
-            }}
-          >
+          <div className="podium-stage">
             {[1, 0, 2].map(slot => {
               const row = rankedByPoints[slot];
-              if (!row) return <div key={`empty-${slot}`} style={{ flex: 1, maxWidth: 120 }} />;
-              const medals = ['🥇', '🥈', '🥉'] as const;
-              const h = slot === 0 ? 132 : slot === 1 ? 104 : 84;
-              const grad =
-                slot === 0
-                  ? 'linear-gradient(180deg, #fbbf24 0%, #b45309 100%)'
-                  : slot === 1
-                    ? 'linear-gradient(180deg, #94a3b8 0%, #475569 100%)'
-                    : 'linear-gradient(180deg, #d97757 0%, #9a3412 100%)';
+              if (!row) return <div key={`empty-${slot}`} style={{ flex: 1, maxWidth: 130 }} />;
+              const rankClass = slot === 0 ? 'podium-slot__rank--1' : slot === 1 ? 'podium-slot__rank--2' : '';
+              const barClass = slot === 0 ? 'podium-bar--1' : slot === 1 ? 'podium-bar--2' : 'podium-bar--3';
 
               return (
                 <motion.div
                   key={row.player.id}
-                  style={{ flex: 1, maxWidth: 130, display: 'flex', flexDirection: 'column', alignItems: 'center' }}
-                  initial={{ opacity: 0, y: 28, scale: 0.94 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  className="podium-slot"
+                  initial={{ opacity: 0, y: 28 }}
+                  animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.38, delay: 0.06 * (slot === 0 ? 1 : slot === 1 ? 0 : 2) }}
                 >
-                  <span style={{ fontSize: 26, lineHeight: 1, marginBottom: 6 }}>{medals[slot]}</span>
-                  <div style={{
-                    fontSize: 13, fontWeight: 800, textAlign: 'center', lineHeight: 1.25,
-                    marginBottom: 6, maxWidth: '100%', wordBreak: 'break-word',
-                  }}>
-                    {row.player.name}
-                  </div>
-                  <div style={{
-                    fontSize: 13, fontWeight: 900, color: row.points > 0 ? 'var(--accent2)' : 'var(--text-muted)',
-                    marginBottom: 8,
-                  }}>
+                  <div className={`podium-slot__rank ${rankClass}`}>{slot + 1}</div>
+                  <div className="podium-slot__name">{row.player.name}</div>
+                  <div className={`podium-slot__pts${row.points > 0 ? ' podium-slot__pts--pos' : ''}`}>
                     {formatPointsPts(row.points)}
                   </div>
-                  <div
-                    style={{
-                      width: '100%',
-                      height: h,
-                      borderRadius: '12px 12px 6px 6px',
-                      background: grad,
-                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2), 0 12px 28px rgba(0,0,0,0.35)',
-                      border: '1px solid rgba(255,255,255,0.12)',
-                      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-                      paddingBottom: 8,
-                      color: '#fff',
-                      fontWeight: 900,
-                      fontSize: 15,
-                    }}
-                  >
-                    {slot + 1}
-                  </div>
+                  <div className={`podium-bar ${barClass}`}>{slot + 1}</div>
                 </motion.div>
               );
             })}
           </div>
 
           {rankedByPoints.length > 3 && (
-            <div style={{
-              paddingTop: 12,
-              borderTop: '1px solid var(--border)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
-            }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.03em' }}>
-                POZOSTALI
-              </span>
+            <div className="podium-rest">
+              <span className="section-title">Pozostali</span>
               {rankedByPoints.slice(3).map((row, i) => (
-                <div
-                  key={row.player.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '8px 10px', borderRadius: 10, background: 'var(--bg3)',
-                  }}
-                >
-                  <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-muted)', width: 22 }}>{4 + i}</span>
-                  <span style={{ flex: 1, fontWeight: 700, fontSize: 13 }}>{row.player.name}</span>
-                  <span style={{
-                    fontSize: 12, fontWeight: 800,
-                    color: row.points > 0 ? 'var(--accent2)' : 'var(--text-muted)',
-                  }}>
+                <div key={row.player.id} className="podium-rest__row">
+                  <span className="podium-rest__pos">{4 + i}</span>
+                  <span className="podium-rest__name">{row.player.name}</span>
+                  <span className={`results-vote-row__pts${row.points > 0 ? ' results-vote-row__pts--pos' : ''}`}>
                     {formatPointsPts(row.points)}
                   </span>
                 </div>
@@ -413,11 +306,9 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
         </motion.div>
       )}
 
-      {/* Admin navigation */}
       {isAdmin && (
         <button
-          className="btn btn-primary btn-lg"
-          style={{ width: '100%' }}
+          className="btn btn-primary btn-lg btn-block"
           onClick={next}
           disabled={revealing}
         >
@@ -430,8 +321,7 @@ export default function ResultsPhase({ room, players, songs, votes, isAdmin }: P
         </button>
       )}
       {!isAdmin && (
-        <div className="card" style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
-          <User size={14} style={{ display: 'inline', marginRight: 6 }} />
+        <div className="wait-banner">
           Czekaj aż admin przejdzie dalej…
         </div>
       )}

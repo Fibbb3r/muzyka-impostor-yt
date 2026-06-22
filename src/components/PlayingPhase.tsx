@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { ChevronRight, Music, Trophy } from 'lucide-react';
 import { motion } from 'framer-motion';
 import YTPlayer from './YTPlayer';
+import PlayerSelect from './PlayerSelect';
 import { extractVideoId, useYoutubeTitles } from '../lib/youtube';
 import type { Room, Player, Song, Vote, VoteState, SkipVote } from '../types/game';
 
@@ -68,6 +69,7 @@ export default function PlayingPhase({
       setElapsed(e => {
         if (e >= DURATION) {
           clearInterval(intervalRef.current!);
+          intervalRef.current = null;
           setPlaying(false);
           return DURATION;
         }
@@ -183,20 +185,42 @@ export default function PlayingPhase({
     skipThreshold,
   ]);
 
-  return (
-    <div style={{ width: '100%', maxWidth: 1300, margin: '0 auto' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '7fr 2fr', gap: 24, alignItems: 'start' }}>
+  const volumeBeforeMuteRef = useRef(
+    Math.max(1, parseInt(localStorage.getItem('yt-volume') || '80', 10) || 80),
+  );
 
+  function handleVolumeChange(v: number) {
+    setVolume(v);
+    localStorage.setItem('yt-volume', String(v));
+    if (v > 0) volumeBeforeMuteRef.current = v;
+  }
+
+  function toggleMute() {
+    if (volume === 0) {
+      handleVolumeChange(volumeBeforeMuteRef.current || 80);
+    } else {
+      volumeBeforeMuteRef.current = volume;
+      handleVolumeChange(0);
+    }
+  }
+
+  return (
+    <div className="playing-col" style={{ maxWidth: 1300, width: '100%', margin: '0 auto' }}>
+      <div style={{ textAlign: 'center', marginBottom: 8 }}>
+        <span className="ui-tag">[ NUTKA {currentSongIdx} / {songs.length} ]</span>
+      </div>
+
+      <div className="playing-grid">
         {/* LEFT — Player */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <div className="playing-col">
+          <div className="card card-accent">
+            <div className="playing-card-header">
               <Music size={18} color="var(--accent)" />
-              <span style={{ fontWeight: 800, fontSize: 16 }}>
-                Nutka {currentSongIdx} / {songs.length}
+              <span className="playing-card-header__title">
+                Odtwarzanie
               </span>
               {currentSong && (
-                <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 12 }}>
+                <span className="playing-card-header__time">
                   {formatTime(currentSong.start_seconds)} → {formatTime(currentSong.start_seconds + 30)}
                 </span>
               )}
@@ -209,70 +233,38 @@ export default function PlayingPhase({
                 startSeconds={currentSong.start_seconds}
                 playing={playing}
                 volume={volume}
+                onVolumeChange={handleVolumeChange}
+                onMuteToggle={toggleMute}
               />
             ) : (
-              <div style={{
-                height: 160, display: 'flex', alignItems: 'center',
-                justifyContent: 'center', color: 'var(--text-muted)',
-                background: 'var(--bg3)', borderRadius: 12,
-              }}>
+              <div className="yt-wrap__placeholder">
                 {songs.length === 0 ? 'Ładowanie nutek…' : 'Nieprawidłowy link YouTube'}
               </div>
             )}
 
-            {/* Progress bar */}
             <div style={{ marginTop: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+              <div className="progress-meta">
                 <span>{elapsed}s</span>
                 <span>{DURATION}s</span>
               </div>
-              <div style={{ height: 6, background: 'var(--bg3)', borderRadius: 99, overflow: 'hidden' }}>
+              <div className="progress-track">
                 <motion.div
-                  style={{
-                    height: '100%',
-                    background: 'linear-gradient(90deg, var(--accent), var(--accent2))',
-                    borderRadius: 99,
-                  }}
+                  className="progress-fill"
                   animate={{ width: `${progress}%` }}
                   transition={{ duration: 0.5 }}
                 />
               </div>
             </div>
-
-            {/* Volume slider */}
-            <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 16 }}>{volume === 0 ? '🔇' : volume < 40 ? '🔈' : volume < 75 ? '🔉' : '🔊'}</span>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={volume}
-                onChange={e => {
-                  const v = parseInt(e.target.value);
-                  setVolume(v);
-                  localStorage.setItem('yt-volume', String(v));
-                }}
-                style={{
-                  flex: 1,
-                  accentColor: 'var(--accent)',
-                  cursor: 'pointer',
-                  height: 4,
-                }}
-              />
-              <span style={{ fontSize: 12, color: 'var(--text-muted)', minWidth: 28, textAlign: 'right' }}>
-                {volume}%
-              </span>
-            </div>
           </div>
 
           {!isLastSong && (
-            <div className="card" style={{ padding: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <span style={{ fontWeight: 700, fontSize: 14 }}>Vote skip</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+            <div className="card card-sm">
+              <div className="vote-skip-row">
+                <div>
+                  <div className="vote-skip-row__label">Vote skip</div>
+                  <div className="vote-skip-row__meta">
                     {votesForCurrentSong}/{skipThreshold} głosów
-                  </span>
+                  </div>
                 </div>
                 <button
                   className="btn btn-ghost"
@@ -287,8 +279,7 @@ export default function PlayingPhase({
 
           {isAdmin && (
             <button
-              className="btn btn-primary"
-              style={{ width: '100%' }}
+              className="btn btn-primary btn-lg btn-block"
               onClick={nextSong}
               disabled={songs.length === 0}
             >
@@ -299,28 +290,21 @@ export default function PlayingPhase({
             </button>
           )}
           {!isAdmin && isLastSong && elapsed >= DURATION && (
-            <div style={{
-              textAlign: 'center',
-              padding: '12px 16px',
-              background: 'var(--bg3)',
-              borderRadius: 'var(--radius)',
-              border: '1px solid var(--border)',
-              color: 'var(--text-muted)',
-              fontSize: 13,
-            }}>
+            <div className="wait-banner">
               ⏳ Czekaj — admin pokaże wyniki…
             </div>
           )}
         </div>
 
         {/* RIGHT — Voting panel */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <Trophy size={16} color="var(--accent2)" />
-            <span style={{ fontWeight: 800, fontSize: 15 }}>Głosowanie</span>
-            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>· zmień kiedy chcesz</span>
-          </div>
+        <div className="playing-col playing-col--vote">
+          <div className="card card-accent vote-panel">
+            <div className="playing-card-header">
+              <Trophy size={18} color="var(--accent)" />
+              <span className="playing-card-header__title">Głosowanie</span>
+            </div>
 
+            <div className="vote-panel__list">
           {songs.map((_, i) => {
             const idx = i + 1;
             const vote = myVotes[idx] ?? { voted_for_id: '', is_impostor_guess: false, impostor_target_id: '' };
@@ -331,90 +315,55 @@ export default function PlayingPhase({
             const impostorAlreadyGuessed = showImpostorCheckbox && Object.entries(myVotes).some(
               ([k, v]) => parseInt(k) !== idx && v.is_impostor_guess
             );
+            const isActive = idx === currentSongIdx;
 
             return (
               <motion.div
                 key={idx}
-                className="card"
-                style={{
-                  border: `1px solid ${idx === currentSongIdx ? 'var(--accent)' : 'var(--border)'}`,
-                  background: idx === currentSongIdx ? 'var(--bg3)' : 'var(--bg2)',
-                  padding: '16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px'
-                }}
+                className={`vote-item${isActive ? ' vote-item--active' : ''}`}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.04 }}
               >
-                {/* Song number badge */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <div style={{
-                    width: 28, height: 28, borderRadius: 'var(--radius)',
-                    background: idx === currentSongIdx
-                      ? 'var(--accent)'
-                      : 'var(--bg3)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 13, fontWeight: 800, color: idx === currentSongIdx ? '#fff' : 'var(--text-muted)',
-                    border: idx !== currentSongIdx ? '1px solid var(--border)' : 'none',
-                    flexShrink: 0,
-                  }}>
+                <div className="vote-card__top">
+                  <div className={`vote-card__num${isActive ? ' vote-card__num--active' : ''}`}>
                     {idx}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.2 }}>
+                    <span className="vote-card__title">
                       Nutka {idx}
-                      {idx === currentSongIdx && (
-                        <span style={{ marginLeft: 6, fontSize: 11, color: 'var(--accent)', fontWeight: 700 }}>
-                          ▶ TERAZ GRA
-                        </span>
+                      {isActive && (
+                        <span className="vote-card__now">▶ TERAZ</span>
                       )}
                     </span>
                     {revealedTitles[idx] && (
-                      <span style={{
-                        fontSize: 12,
-                        color: 'var(--text-muted)',
-                        fontWeight: 500,
-                        lineHeight: 1.4,
-                      }}>
-                        🎵 {revealedTitles[idx]}
+                      <span className="vote-card__song-title">
+                        {revealedTitles[idx]}
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* Who added it */}
                 {isWordImpostorMode ? (
-                  <div style={{ marginBottom: 4 }}>
-                    <label className="label" style={{ marginBottom: 4 }}>Dodał/a:</label>
-                    <div style={{
-                      padding: '9px 12px', background: 'var(--bg3)', borderRadius: 10,
-                      border: '1px solid var(--border)', fontSize: 13, fontWeight: 700
-                    }}>
+                  <div>
+                    <label className="label">Dodał/a</label>
+                    <div className="vote-card__readonly">
                       {players.find(p => p.id === songs[i].player_id)?.name ?? 'Nieznany'}
                     </div>
                   </div>
                 ) : (
                   <>
-                    <label className="label" style={{ marginBottom: 4 }}>Kto dodał?</label>
-                    <select
-                      className="input"
-                      style={{ fontSize: 13, padding: '9px 12px' }}
+                    <label className="label">Kto dodał?</label>
+                    <PlayerSelect
                       value={vote.voted_for_id}
-                      onChange={e => onVoteChange(idx, 'voted_for_id', e.target.value)}
-                    >
-                      <option value="">— wybierz gracza —</option>
-                      {players.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
+                      onChange={v => onVoteChange(idx, 'voted_for_id', v)}
+                      options={players.map(p => ({ value: p.id, label: p.name }))}
+                    />
                   </>
                 )}
 
-                {/* Impostor guess */}
                 {showImpostorCheckbox && !amImpostor && (isWordImpostorMode || vote.voted_for_id) && !impostorAlreadyGuessed && (
-                  <div style={{ marginTop: 10 }}>
+                  <div>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 8 }}>
                       <input
                         type="checkbox"
@@ -422,40 +371,35 @@ export default function PlayingPhase({
                         onChange={e => onVoteChange(idx, 'is_impostor_guess', e.target.checked)}
                         style={{ accentColor: 'var(--danger)', width: 15, height: 15 }}
                       />
-                      <span style={{ fontSize: 12, color: '#fb7185', fontWeight: 600 }}>🕵️ To Impostor!</span>
+                      <span style={{ fontSize: 12, color: 'var(--danger)', fontWeight: 600 }}>To Impostor!</span>
                     </label>
 
                     {vote.is_impostor_guess && isImpostorMode && (
                       <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}>
-                        <label className="label" style={{ marginBottom: 4, color: '#fb7185' }}>Pod kogo się podszywa?</label>
-                        <select
-                          className="input"
-                          style={{ fontSize: 13, padding: '9px 12px' }}
+                        <label className="label" style={{ color: 'var(--danger)' }}>Pod kogo się podszywa?</label>
+                        <PlayerSelect
                           value={vote.impostor_target_id}
-                          onChange={e => onVoteChange(idx, 'impostor_target_id', e.target.value)}
-                        >
-                          <option value="">— wybierz ofiarę —</option>
-                          {players.filter(p => p.id !== vote.voted_for_id).map(p => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                          ))}
-                        </select>
+                          onChange={v => onVoteChange(idx, 'impostor_target_id', v)}
+                          placeholder="— wybierz ofiarę —"
+                          options={players
+                            .filter(p => p.id !== vote.voted_for_id)
+                            .map(p => ({ value: p.id, label: p.name }))}
+                        />
                       </motion.div>
                     )}
                   </div>
                 )}
 
                 {showImpostorCheckbox && !amImpostor && impostorAlreadyGuessed && !vote.is_impostor_guess && (
-                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                     Już wskazałeś impostora w innej nutce
                   </p>
                 )}
               </motion.div>
             );
           })}
-
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
-            Głosy zapisują się automatycznie
-          </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
