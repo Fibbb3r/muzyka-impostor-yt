@@ -47,6 +47,12 @@ Dodatkowo:
 
 - Przy dodawaniu nutki aplikacja może pokazywać inne komunikaty dla nie-impostorów niż dla impostora (np. znane vs nieznane słowo).
 
+**Głosy:**
+
+- Podczas odsłuchu nutki **nie widać, kto ją dodał** — widoczna jest tylko nutka (numer, ewentualnie tytuł).
+- Każdy gracz (poza impostorem) może zaznaczyć **To Impostor!** przy **jednej nutce** na całą rundę — oznacza to, że uważa, iż ta nutka pochodzi od impostora.
+- Autor nutki ujawniany jest dopiero w **wynikach po nutce**.
+
 **Uwaga dotycząca punktacji:** szczegółowe **punkty za ten tryb** są do ustalenia (planowana rozbudowa mechaniki ze słowem). Do czasu wdrożenia w aplikacji można traktować podsumowanie punktów przy nutce jako wyłączone lub tymczasowe.
 
 ---

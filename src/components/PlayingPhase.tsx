@@ -344,14 +344,7 @@ export default function PlayingPhase({
                   </div>
                 </div>
 
-                {isWordImpostorMode ? (
-                  <div>
-                    <label className="label">Dodał/a</label>
-                    <div className="vote-card__readonly">
-                      {players.find(p => p.id === songs[i].player_id)?.name ?? 'Nieznany'}
-                    </div>
-                  </div>
-                ) : (
+                {!isWordImpostorMode && (
                   <>
                     <label className="label">Kto dodał?</label>
                     <PlayerSelect
