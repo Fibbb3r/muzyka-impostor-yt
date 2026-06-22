@@ -140,7 +140,7 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
                 </div>
                 <span style={{ fontWeight: 600, fontSize: 14, flex: 1 }}>{p.name}</span>
                 {p.is_admin && (
-                  <span className="badge badge-red">
+                  <span className="badge badge-gold">
                     <Crown size={10} /> Admin
                   </span>
                 )}
