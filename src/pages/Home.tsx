@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Music2, Key, User, ArrowRight, Loader2 } from 'lucide-react';
+import { Key, User, ArrowRight, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const GLOBAL_ROOM_CODE = 'GLOBAL';
@@ -24,7 +24,6 @@ export default function Home() {
     const isAdmin = password === ADMIN_PASSWORD && ADMIN_PASSWORD !== '';
 
     try {
-      // Upewnij się że globalny pokój istnieje
       let { data: room } = await supabase
         .from('rooms')
         .select('*')
@@ -41,7 +40,6 @@ export default function Home() {
         room = newRoom;
       }
 
-      // Wstaw gracza
       const { data: player, error: playerErr } = await supabase
         .from('players')
         .insert({ room_id: room.id, name: trimmedNick, is_admin: isAdmin, is_impostor: false, is_szpont: false })
@@ -49,7 +47,6 @@ export default function Home() {
         .single();
       if (playerErr) throw playerErr;
 
-      // Zapisz sesję
       sessionStorage.setItem('playerId', player.id);
       sessionStorage.setItem('playerName', trimmedNick);
       sessionStorage.setItem('isAdmin', String(isAdmin));
@@ -70,28 +67,16 @@ export default function Home() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
       >
-        {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 40 }}>
-          <div style={{
-            width: 64, height: 64,
-            background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
-            borderRadius: 18,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px',
-            boxShadow: '0 8px 32px rgba(124,108,252,0.4)',
-          }}>
-            <Music2 size={30} color="#fff" />
-          </div>
-          <h1 style={{ fontSize: 28, fontWeight: 900, marginBottom: 6 }} className="grad-text">
-            Muzyka Impostor
+        <div className="screen-header">
+          <h1 className="screen-header__title">
+            Music Impostor
           </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>
+          <p className="screen-header__subtitle">
             Zgaduj kto wybrał daną nutkę
           </p>
         </div>
 
-        {/* Form */}
-        <div className="card" style={{ padding: 32 }}>
+        <div className="card card-lg card-accent">
           <form onSubmit={handleJoin} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div>
               <label className="label">
@@ -111,7 +96,10 @@ export default function Home() {
             <div>
               <label className="label">
                 <Key size={12} style={{ display: 'inline', marginRight: 5 }} />
-                Hasło admina <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opcjonalne)</span>
+                Hasło admina{' '}
+                <span style={{ color: 'var(--text-muted)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+                  (opcjonalne)
+                </span>
               </label>
               <input
                 className="input"
@@ -132,23 +120,19 @@ export default function Home() {
               </motion.p>
             )}
 
-            <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
+            <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={loading}>
               {loading
-                ? <><Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> Dołączam…</>
+                ? <><Loader2 size={18} className="spin" /> Dołączam…</>
                 : <><ArrowRight size={18} /> Dołącz do gry</>
               }
             </button>
           </form>
         </div>
 
-        <p style={{ textAlign: 'center', marginTop: 20, color: 'var(--text-muted)', fontSize: 12 }}>
-          Jeden globalny pokój · Kontrolowany przez admina
+        <p style={{ textAlign: 'center', marginTop: 20 }}>
+          <span className="ui-tag">[ GLOBAL ROOM ]</span>
         </p>
       </motion.div>
-
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
     </div>
   );
 }

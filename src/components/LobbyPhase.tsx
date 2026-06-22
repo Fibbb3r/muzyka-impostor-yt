@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Users, Play, Shield, Trash2, Crown, Music2 } from 'lucide-react';
+import { Users, Play, Shield, Trash2, Crown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Room, Player, GameMode } from '../types/game';
 import words from '../data/words.json';
@@ -38,12 +38,10 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
     if (players.length < 2) return;
     setStarting(true);
 
-    // Reset: usuń stare nutki, głosy i głosy skip (żeby nie mieszały się między rundami)
     await supabase.from('votes').delete().eq('room_id', room.id);
     await supabase.from('songs').delete().eq('room_id', room.id);
     await supabase.from('song_skip_votes').delete().eq('room_id', room.id);
 
-    // Resetuj graczy (impostor + szpont)
     await supabase
       .from('players')
       .update({ is_impostor: false, impersonates_id: null, is_szpont: false })
@@ -115,23 +113,14 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
 
   return (
     <div style={{ width: '100%', maxWidth: 520, margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <div style={{
-          width: 56, height: 56,
-          background: 'linear-gradient(135deg, var(--accent), var(--accent2))',
-          borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 14px',
-          boxShadow: '0 6px 24px rgba(124,108,252,0.4)',
-        }}>
-          <Music2 size={26} color="#fff" />
-        </div>
-        <h1 style={{ fontSize: 24, fontWeight: 800 }} className="grad-text">Muzyka Impostor</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>Lobby · Oczekiwanie na start</p>
+      <div className="screen-header screen-header--compact">
+        <h1 className="screen-header__title--sm">Music Impostor</h1>
+        <p className="screen-header__tag">
+          <span className="ui-tag">[ LOBBY GLOBALNE ]</span>
+        </p>
       </div>
 
-      {/* Player list */}
-      <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card card-accent" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
           <Users size={16} color="var(--accent)" />
           <span style={{ fontWeight: 700, fontSize: 15 }}>Gracze ({players.length})</span>
@@ -144,19 +133,14 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
                 initial={{ opacity: 0, x: -16 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 16 }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '10px 12px', borderRadius: 10,
-                  background: p.id === currentPlayer.id ? 'rgba(124,108,252,0.1)' : 'var(--bg3)',
-                  border: `1px solid ${p.id === currentPlayer.id ? 'rgba(124,108,252,0.3)' : 'var(--border)'}`,
-                }}
+                className={`list-row${p.id === currentPlayer.id ? ' list-row--active' : ''}`}
               >
                 <div className="avatar" style={{ width: 32, height: 32, fontSize: 13 }}>
                   {p.name[0].toUpperCase()}
                 </div>
                 <span style={{ fontWeight: 600, fontSize: 14, flex: 1 }}>{p.name}</span>
                 {p.is_admin && (
-                  <span className="badge badge-purple">
+                  <span className="badge badge-red">
                     <Crown size={10} /> Admin
                   </span>
                 )}
@@ -184,37 +168,26 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
         )}
       </div>
 
-      {/* Admin panel */}
       {isAdmin && (
-        <div className="card">
+        <div className="card card-accent">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
-            <Shield size={16} color="var(--accent2)" />
+            <Shield size={16} color="var(--accent)" />
             <span style={{ fontWeight: 700, fontSize: 15 }}>Panel Admina</span>
           </div>
 
           <p className="label" style={{ marginBottom: 10 }}>Tryb gry</p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 20 }}>
+          <div className="btn-toggle-grid" style={{ marginBottom: 20 }}>
             {(['normal', 'impostor', 'word_impostor'] as GameMode[]).map(m => (
               <button
                 key={m}
+                type="button"
                 onClick={() => setMode(m)}
-                style={{
-                  padding: '14px 10px',
-                  borderRadius: 12,
-                  border: `2px solid ${mode === m ? 'var(--accent)' : 'var(--border)'}`,
-                  background: mode === m ? 'rgba(124,108,252,0.15)' : 'var(--bg3)',
-                  color: mode === m ? 'var(--text)' : 'var(--text-muted)',
-                  fontWeight: 700,
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                  textAlign: 'center',
-                }}
+                className={`btn-toggle${mode === m ? ' btn-toggle--active' : ''}`}
               >
                 {m === 'normal' ? '🎵 Klasyk' : m === 'impostor' ? '🕵️ Impostor' : '🗣️ Słowo Impostor'}
-                <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4, opacity: 0.7 }}>
+                <span className="btn-toggle__desc">
                   {m === 'normal' ? 'Zgaduj kto wybrał' : m === 'impostor' ? 'Gracze podszywają się pod innych' : 'Impostorzy nie znają słowa'}
-                </div>
+                </span>
               </button>
             ))}
           </div>
@@ -257,14 +230,14 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
                   max={maxSzponts}
                   value={Math.min(szpontCount, maxSzponts)}
                   onChange={e => setSzpontCount(parseInt(e.target.value, 10))}
-                  style={{ flex: 1, accentColor: '#f59e0b' }}
+                  style={{ flex: 1, accentColor: 'var(--warn)' }}
                 />
                 <span style={{
                   minWidth: 36,
                   textAlign: 'center',
                   fontWeight: 800,
                   fontSize: 16,
-                  color: '#f59e0b',
+                  color: 'var(--warn)',
                 }}>
                   {Math.min(szpontCount, maxSzponts)}
                 </span>
@@ -276,8 +249,7 @@ export default function LobbyPhase({ room, players, currentPlayer, isAdmin, onKi
           )}
 
           <button
-            className="btn btn-primary btn-lg"
-            style={{ width: '100%' }}
+            className="btn btn-primary btn-lg btn-block"
             disabled={players.length < 2 || starting}
             onClick={startGame}
           >
