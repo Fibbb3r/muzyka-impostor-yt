@@ -81,52 +81,9 @@ html::before {
 }
 ── */
 
-/* ── Equalizer background ── */
-.eq-bg {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 72vh;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 28%, rgba(0, 0, 0, 0.55) 52%, rgba(0, 0, 0, 0.15) 72%, transparent 100%);
-  mask-image: linear-gradient(to top, #000 0%, #000 28%, rgba(0, 0, 0, 0.55) 52%, rgba(0, 0, 0, 0.15) 72%, transparent 100%);
-}
-
-.eq-bg__bars {
-  display: flex;
-  align-items: flex-end;
-  justify-content: stretch;
-  gap: clamp(1px, 0.12vw, 3px);
-  width: 100%;
-  height: 100%;
-  padding: 0;
-}
-
-.eq-bg__bar {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  transform: scaleY(var(--eq-min, 0.1));
-  transform-origin: bottom center;
-  background: linear-gradient(to top, var(--accent) 0%, rgba(0, 102, 255, 0.15) 100%);
-  box-shadow: 0 0 10px rgba(0, 102, 255, 0.08);
-  animation: eq-bounce ease-in-out infinite;
-  will-change: transform;
-}
-
-@keyframes eq-bounce {
-  0%, 100% { transform: scaleY(var(--eq-min, 0.1)); }
-  50%      { transform: scaleY(var(--eq-max, 0.75)); }
-}
-
 body, #root {
-  position: relative;
-  z-index: 1;
   min-height: 100vh;
-  background: transparent;
+  background: var(--bg);
   color: var(--text);
   font-family: 'Space Grotesk', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
